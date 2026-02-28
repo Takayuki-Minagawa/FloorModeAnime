@@ -129,17 +129,17 @@ export class FloorViewer {
     );
 
     // --- 未変形線 (グレー 0x888888, 2px) ---
-    // 座標マッピング: data(x,y,z) → three.js(x, z, y)
-    //   data.x → three.x
+    // 座標マッピング: data(x,y,z) → three.js(y, z, x)
+    //   data.y → three.x (平面の横方向)
     //   data.z → three.y (鉛直方向 = three.js の上方向)
-    //   data.y → three.z (奥行き方向)
+    //   data.x → three.z (平面の奥行き方向)
     const undeformedPositions = [];
     for (const line of lines) {
       const ni = nodes.get(line.nodeI);
       const nj = nodes.get(line.nodeJ);
       if (!ni || !nj) continue;
-      undeformedPositions.push(ni.x, ni.z, ni.y);
-      undeformedPositions.push(nj.x, nj.z, nj.y);
+      undeformedPositions.push(ni.y, ni.z, ni.x);
+      undeformedPositions.push(nj.y, nj.z, nj.x);
     }
 
     const undeformedGeo = new LineSegmentsGeometry();
@@ -164,8 +164,8 @@ export class FloorViewer {
       if (!ni || !nj) continue;
 
       // 初期状態は未変形と同じ座標 (座標マッピング適用)
-      deformedPositions.push(ni.x, ni.z, ni.y);
-      deformedPositions.push(nj.x, nj.z, nj.y);
+      deformedPositions.push(ni.y, ni.z, ni.x);
+      deformedPositions.push(nj.y, nj.z, nj.x);
 
       this._deformedVertexMap.push({
         nodeI: line.nodeI,
@@ -197,7 +197,7 @@ export class FloorViewer {
     const gridColor = this._isDark ? 0x444466 : 0xcccccc;
     const grid = new THREE.GridHelper(gridSize, gridDivisions, gridColor, gridColor);
     // GridHelper は XZ 平面に作成されるため、中心をフロアに合わせる
-    grid.position.set(centerX, centerZ, centerY);
+    grid.position.set(centerY, centerZ, centerX);
     this._gridGroup.add(grid);
 
     // --- カメラ位置調整 ---
@@ -205,8 +205,8 @@ export class FloorViewer {
     // 正面寄り(大きな-Z offset)・少し右(小さな+X offset)のアングルで、
     // data.X増→画面右, data.Y増→画面上, 原点→画面左下 となる
     const dist = this._lFloor * 1.5;
-    this._camera.position.set(centerX + dist * 0.4, centerZ + dist * 0.7, centerY - dist * 0.85);
-    this._controls.target.set(centerX, centerZ, centerY);
+    this._camera.position.set(centerY + dist * 0.4, centerZ + dist * 0.7, centerX - dist * 0.85);
+    this._controls.target.set(centerY, centerZ, centerX);
     this._controls.update();
 
     // --- ノードIDラベル ---
@@ -215,7 +215,7 @@ export class FloorViewer {
       labelDiv.className = 'node-label';
       labelDiv.textContent = node.id;
       const labelObj = new CSS2DObject(labelDiv);
-      labelObj.position.set(node.x, node.z, node.y);
+      labelObj.position.set(node.y, node.z, node.x);
       this._labelsGroup.add(labelObj);
     }
   }
@@ -241,9 +241,9 @@ export class FloorViewer {
       const zI = getDisplacedZ(entry.nodeI);
       const zJ = getDisplacedZ(entry.nodeJ);
 
-      // three.js 座標系: x=x, y=z(上), z=y(奥)
-      startAttr.setXYZ(entry.segmentIndex, ni.x, zI, ni.y);
-      endAttr.setXYZ(entry.segmentIndex, nj.x, zJ, nj.y);
+      // three.js 座標系: x=y, y=z(上), z=x(奥)
+      startAttr.setXYZ(entry.segmentIndex, ni.y, zI, ni.x);
+      endAttr.setXYZ(entry.segmentIndex, nj.y, zJ, nj.x);
     }
 
     // instanceStart と instanceEnd は同じ InstancedInterleavedBuffer を共有
