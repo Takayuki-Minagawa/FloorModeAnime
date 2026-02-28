@@ -257,6 +257,10 @@ input[type="range"] {
 }
 
 /* --- ファイル入力 ------------------------------------------------------- */
+#file-input {
+  display: none;
+}
+
 .file-row {
   display: flex;
   align-items: center;

@@ -187,12 +187,11 @@ export class FloorViewer {
     this._gridGroup.add(grid);
 
     // --- カメラ位置調整 ---
-    // 真上から見た時に原点(軸)が左下に来るよう配置
-    // 座標マッピング: data.x → three.x(右), data.y → three.z(奥)
-    // カメラを右手前上方(+x, +y, -z方向)に置くことで、
-    // data.X増→画面右, data.Y増→画面上 となり原点が左下に来る
+    // 原点(軸)がビューポート左下に来るよう配置
+    // 正面寄り(大きな-Z offset)・少し右(小さな+X offset)のアングルで、
+    // data.X増→画面右, data.Y増→画面上, 原点→画面左下 となる
     const dist = this._lFloor * 1.5;
-    this._camera.position.set(centerX + dist * 0.8, centerZ + dist * 0.7, centerY - dist * 0.5);
+    this._camera.position.set(centerX + dist * 0.4, centerZ + dist * 0.7, centerY - dist * 0.85);
     this._controls.target.set(centerX, centerZ, centerY);
     this._controls.update();
   }
