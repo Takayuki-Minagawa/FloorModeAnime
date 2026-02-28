@@ -59,6 +59,8 @@ export class FloorViewer {
     // nodeId → 変形ジオメトリ内の頂点インデックスのマッピング
     // lines の各線分について [nodeI のindex, nodeJ のindex] を保持
     this._deformedVertexMap = [];
+
+    this._isDark = false;
   }
 
   /**
@@ -97,6 +99,9 @@ export class FloorViewer {
     this._clearGroup(this._axesGroup);
     this._clearGroup(this._gridGroup);
 
+    // テーマに合わせてクリアカラーを設定
+    this._renderer.setClearColor(this._isDark ? 0x1a1a2e : 0xffffff, 1);
+
     // --- 未変形線 (グレー 0x888888) ---
     // 座標マッピング: data(x,y,z) → three.js(x, z, y)
     //   data.x → three.x
@@ -116,7 +121,7 @@ export class FloorViewer {
       'position',
       new THREE.Float32BufferAttribute(undeformedPositions, 3)
     );
-    const undeformedMat = new THREE.LineBasicMaterial({ color: 0x888888 });
+    const undeformedMat = new THREE.LineBasicMaterial({ color: this._isDark ? 0xaaaaaa : 0x888888 });
     const undeformedLines = new THREE.LineSegments(undeformedGeo, undeformedMat);
     this._undeformedGroup.add(undeformedLines);
 
@@ -148,7 +153,7 @@ export class FloorViewer {
       'position',
       new THREE.Float32BufferAttribute(deformedPositions, 3)
     );
-    const deformedMat = new THREE.LineBasicMaterial({ color: 0xff4444 });
+    const deformedMat = new THREE.LineBasicMaterial({ color: this._isDark ? 0xff6666 : 0xff4444 });
     const deformedLines = new THREE.LineSegments(this._deformedGeometry, deformedMat);
     this._deformedGroup.add(deformedLines);
 
@@ -160,7 +165,8 @@ export class FloorViewer {
     // --- GridHelper ---
     const gridSize = this._lFloor * 1.5;
     const gridDivisions = 10;
-    const grid = new THREE.GridHelper(gridSize, gridDivisions, 0xcccccc, 0xcccccc);
+    const gridColor = this._isDark ? 0x444466 : 0xcccccc;
+    const grid = new THREE.GridHelper(gridSize, gridDivisions, gridColor, gridColor);
     // GridHelper は XZ 平面に作成されるため、中心をフロアに合わせる
     grid.position.set(centerX, centerZ, centerY);
     this._gridGroup.add(grid);
@@ -270,6 +276,47 @@ export class FloorViewer {
 
     this._deformedGeometry = null;
     this._floorData = null;
+  }
+
+  /**
+   * テーマに応じてレンダラー・マテリアルの色を切り替える
+   * @param {boolean} isDark
+   */
+  setThemeColors(isDark) {
+    this._isDark = isDark;
+
+    if (!this._renderer) return;
+
+    // Renderer clear color
+    this._renderer.setClearColor(isDark ? 0x1a1a2e : 0xffffff, 1);
+
+    // Undeformed lines: ダーク時は明るめグレーで視認性確保
+    const undeformedColor = isDark ? 0xaaaaaa : 0x888888;
+    this._undeformedGroup.traverse((child) => {
+      if (child.isLineSegments && child.material && child.material.color) {
+        child.material.color.setHex(undeformedColor);
+      }
+    });
+
+    // Deformed lines: ダーク時は明るめ赤で暗背景に映える
+    const deformedColor = isDark ? 0xff6666 : 0xff4444;
+    this._deformedGroup.traverse((child) => {
+      if (child.isLineSegments && child.material && child.material.color) {
+        child.material.color.setHex(deformedColor);
+      }
+    });
+
+    // Grid: ダーク時は控えめに抑えて線を邪魔しない
+    const gridColor = isDark ? 0x444466 : 0xcccccc;
+    this._gridGroup.traverse((child) => {
+      if (child.isLineSegments && child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach((m) => { if (m.color) m.color.setHex(gridColor); });
+        } else if (child.material.color) {
+          child.material.color.setHex(gridColor);
+        }
+      }
+    });
   }
 
   /**

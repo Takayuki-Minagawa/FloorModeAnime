@@ -9,6 +9,7 @@ import { validateFloorData } from './validator.js';
 import { FloorViewer } from './viewer.js';
 import { AnimationController } from './animation.js';
 import { setupUI, updateTimeDisplay } from './ui.js';
+import { initLang, t, applyTranslations } from './i18n.js';
 
 /** @type {FloorViewer|null} */
 let viewer = null;
@@ -69,7 +70,7 @@ function loadData(jsonText) {
     data = parseFloorData(jsonText);
   } catch (err) {
     showMessages(
-      [{ code: 'E_JSON_PARSE', message: `E_JSON_PARSE: ${err.message}` }],
+      [{ code: 'E_JSON_PARSE', message: t('errorJsonParse', { msg: err.message }) }],
       [],
     );
     return false;
@@ -158,6 +159,10 @@ function animationLoop(timestamp) {
  * DOMContentLoaded から呼ばれる。
  */
 export async function initApp() {
+  // 言語初期化
+  initLang();
+  applyTranslations();
+
   const canvasContainer = document.getElementById('canvas-container');
 
   // FloorViewer 初期化
@@ -166,7 +171,7 @@ export async function initApp() {
   } catch (err) {
     console.error('FloorViewer init failed:', err);
     showMessages(
-      [{ code: 'E_WEBGL', message: `E_WEBGL: 3D rendering init failed: ${err.message}` }],
+      [{ code: 'E_WEBGL', message: t('errorWebGL', { msg: err.message }) }],
       [],
     );
     return;
@@ -174,6 +179,13 @@ export async function initApp() {
 
   // 初期リサイズ（CSS レイアウト完了後のサイズに合わせる）
   viewer.resize();
+
+  // 保存済みテーマの復元
+  const savedTheme = localStorage.getItem('floor-mode-theme');
+  if (savedTheme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    viewer.setThemeColors(true);
+  }
 
   // ウィンドウリサイズ対応
   window.addEventListener('resize', () => {
@@ -189,7 +201,7 @@ export async function initApp() {
   } catch (err) {
     console.error('Sample data load failed:', err);
     showMessages(
-      [{ code: 'E_FETCH', message: `E_FETCH: Failed to load sample data: ${err.message}` }],
+      [{ code: 'E_FETCH', message: t('errorFetch', { msg: err.message }) }],
       [],
     );
     // サンプル読込失敗でも viewer は動かしておく

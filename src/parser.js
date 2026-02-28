@@ -46,7 +46,7 @@ export function parseFloorData(jsonString) {
   try {
     raw = JSON.parse(jsonString);
   } catch (e) {
-    throw new Error(`JSON parse error: ${e.message}`);
+    throw new Error(`JSON parse error: ${e.message}`, { cause: e });
   }
 
   // --- 2. キー名を camelCase に変換 -----------------------------------------

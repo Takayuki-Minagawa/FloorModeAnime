@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>Floor Mode Anime</title>
   <link rel="stylesheet" href="/src/styles.css">
 </head>
@@ -11,55 +12,71 @@
     <div id="canvas-container"></div>
 
     <div id="controls">
-      <h2 class="panel-title">Controls</h2>
+      <div class="control-group control-row">
+        <h2 class="panel-title" data-i18n="panelTitle">コントロール</h2>
+        <button id="btn-lang" type="button">EN</button>
+      </div>
 
       <!-- モード選択 -->
       <div class="control-group">
-        <label for="mode-select">Mode</label>
+        <label for="mode-select" data-i18n="labelMode">モード</label>
         <select id="mode-select">
-          <option value="">-- loading --</option>
+          <option value="" data-i18n="loadingOption">-- 読込中 --</option>
         </select>
       </div>
 
       <!-- 再生 / 停止 -->
       <div class="control-group control-row">
-        <button id="btn-play" type="button">&#9654; Play</button>
-        <button id="btn-stop" type="button">&#9632; Stop</button>
+        <button id="btn-play" type="button" data-i18n="btnPlay">&#9654; 再生</button>
+        <button id="btn-stop" type="button" data-i18n="btnStop">&#9632; 停止</button>
       </div>
 
       <!-- 時間表示 -->
       <div class="control-group">
-        <label>Time</label>
+        <label data-i18n="labelTime">時間</label>
         <span id="time-display">t = 0.000 s</span>
       </div>
 
-      <!-- 倍率スライダー -->
+      <!-- 速度スライダー -->
       <div class="control-group">
-        <label for="scale-slider">Scale: <span id="scale-value">1.0</span></label>
+        <label for="speed-slider"><span data-i18n="labelSpeed">速度</span>: <span id="speed-value">1.0</span>x</label>
+        <input id="speed-slider" type="range" min="0.2" max="2.0" step="0.1" value="1.0">
+      </div>
+
+      <!-- 変形倍率スライダー -->
+      <div class="control-group">
+        <label for="scale-slider"><span data-i18n="labelScale">倍率</span>: <span id="scale-value">1.0</span></label>
         <input id="scale-slider" type="range" min="0.5" max="3.0" step="0.1" value="1.0">
       </div>
 
       <!-- 表示切替チェックボックス -->
       <div class="control-group">
-        <label>Visibility</label>
+        <label data-i18n="labelVisibility">表示切替</label>
         <div class="checkbox-list">
-          <label><input id="chk-undeformed" type="checkbox" checked> Undeformed</label>
-          <label><input id="chk-deformed"   type="checkbox" checked> Deformed</label>
-          <label><input id="chk-axes"       type="checkbox" checked> Axes</label>
-          <label><input id="chk-grid"       type="checkbox" checked> Grid</label>
+          <label><input id="chk-undeformed" type="checkbox" checked> <span data-i18n="chkUndeformed">未変形</span></label>
+          <label><input id="chk-deformed"   type="checkbox" checked> <span data-i18n="chkDeformed">変形</span></label>
+          <label><input id="chk-axes"       type="checkbox" checked> <span data-i18n="chkAxes">軸</span></label>
+          <label><input id="chk-grid"       type="checkbox" checked> <span data-i18n="chkGrid">グリッド</span></label>
         </div>
       </div>
 
-      <!-- PNG保存 -->
-      <div class="control-group">
-        <button id="btn-download" type="button">&#128190; Save PNG</button>
+      <!-- テーマ切替 + PNG保存 -->
+      <div class="control-group control-row">
+        <button id="btn-theme" type="button" data-i18n="btnThemeLight">&#9788; ライト</button>
+        <button id="btn-download" type="button" data-i18n="btnSavePng">&#128190; PNG保存</button>
       </div>
 
       <!-- ファイル読込 -->
       <div class="control-group">
-        <label for="file-input">Load JSON</label>
+        <label for="file-input" data-i18n="labelLoadJson">JSON読込</label>
         <input id="file-input" type="file" accept=".json">
       </div>
+
+      <!-- ヘルプ -->
+      <details id="help-section">
+        <summary data-i18n="btnHelp">&#10067; ヘルプ</summary>
+        <div id="help-content"></div>
+      </details>
     </div>
   </div>
 

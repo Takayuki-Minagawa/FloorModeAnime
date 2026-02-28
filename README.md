@@ -1,5 +1,7 @@
 # Floor Mode Anime
 
+> **Ver. 1.0.0**
+
 床構面の**鉛直方向モード形**をブラウザ上で 3D アニメーション表示する静的 Web アプリケーションです。
 構造解析で得られた固有振動数とモード形から、選択したモードの鉛直変位を時刻歴アニメーションで可視化できます。
 
@@ -10,10 +12,14 @@ GitHub Pages でそのまま公開でき、サーバーサイド処理は不要�
 - 固有振動数とモード形に基づく鉛直変位の 3D アニメーション表示
 - 未変形線と変形線の同時表示による相対変位分布の視覚比較
 - モード切替、再生／停止、倍率調整（0.5 〜 3.0）
+- アニメーション速度調整（0.2x 〜 2.0x）
 - 表示要素の ON／OFF 切替（未変形線・変形線・軸・グリッド）
+- ダークモード／ライトモード切替（設定はブラウザに保存）
+- 日本語／英語の多言語対応（設定はブラウザに保存）
 - マウス操作による回転・パン・ズーム（OrbitControls）
 - 停止中の画面を PNG 画像として保存
 - ローカル JSON ファイルの読込とサンプルデータの自動読込
+- アプリ内ヘルプ（操作ガイド）
 
 ## 動作環境
 
@@ -39,7 +45,7 @@ npm run dev
 ## ビルド
 
 ```bash
-# 本番用ビルド（出力先: docs/）
+# 本番用ビルド（出力先: dist/）
 npm run build
 
 # ビルド結果のプレビュー
@@ -119,10 +125,14 @@ z_i'(t) = z_i + u_i(t)
 | Mode | モード番号の切替。切替時に `t = 0` でリセット |
 | Play / Stop | アニメーションの再生と停止（停止時はフレーム保持） |
 | Time | 経過時間 `t [s]` の表示（小数第 3 位まで） |
+| Speed | 再生速度の調整（0.2x 〜 2.0x、刻み 0.1） |
 | Scale | 変形倍率の調整（0.5 〜 3.0、刻み 0.1） |
 | Visibility | 未変形線・変形線・軸・グリッドの表示切替 |
+| Theme | ライトモード／ダークモードの切替 |
+| Language | 日本語（JA）／英語（EN）の切替 |
 | Save PNG | 停止中のみ有効。3D 画面を PNG 画像として保存 |
 | Load JSON | ローカルの JSON ファイルを読み込んでデータを差し替え |
+| Help | アプリ内操作ガイドの表示（開閉式） |
 
 ## プロジェクト構成
 
@@ -139,20 +149,22 @@ FloorModeAnime/
     parser.js             # JSON 読込・型変換
     validator.js          # データ整合チェック・エラー収集
     ui.js                 # UI コントロール・イベント管理
-    styles.css            # スタイルシート
+    i18n.js               # 多言語対応（ja / en）
+    styles.css            # スタイルシート（ライト/ダーク対応）
   public/
+    favicon.svg           # ファビコン
     Sample/
       sample_case.json    # サンプルデータ
-  docs/                   # ビルド出力（GitHub Pages 用）
+  dist/                   # ビルド出力（GitHub Pages 用）
 ```
 
 ## GitHub Pages へのデプロイ
 
-1. `npm run build` を実行（`docs/` にビルド出力が生成されます）
-2. `docs/` を含めて GitHub にプッシュ
-3. リポジトリの **Settings > Pages** を開く
-4. **Build and deployment** で **Deploy from a branch** を選択
-5. Branch を `main`、Folder を `/docs` に設定して保存
+GitHub Actions により `main` ブランチへのプッシュ時に自動デプロイされます。
+
+1. リポジトリの **Settings > Pages** を開く
+2. **Build and deployment > Source** で **GitHub Actions** を選択
+3. `main` ブランチにプッシュすると自動的にビルド・デプロイが実行される
 
 ## 技術スタック
 
