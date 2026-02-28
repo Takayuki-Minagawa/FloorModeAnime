@@ -106,7 +106,7 @@ npm run preview
 
 - `x`, `y`: 床平面上の水平座標
 - `z`: 鉛直方向（モード変形方向）
-- 3D 表示での座標マッピング: `data.x → three.x`、`data.y → three.z`、`data.z → three.y（鉛直上方向）`
+- 3D 表示での座標マッピング: `data.y → three.x（X軸: 1→4方向）`、`data.z → three.y（鉛直上方向）`、`data.x → three.z（Y軸: 1→2方向）`
 
 ## 変形表示の計算
 
