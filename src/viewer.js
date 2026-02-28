@@ -205,7 +205,7 @@ export class FloorViewer {
     // 左寄り(大きな-X offset)・少し手前(-Z offset)のアングルで
     // 時計回り(1→4→3→2)の配置となる
     const dist = this._lFloor * 1.5;
-    this._camera.position.set(centerX - dist * 0.85, centerZ + dist * 0.7, centerY - dist * 0.4);
+    this._camera.position.set(centerX - dist * 0.85, centerZ + dist * 0.7, centerY + dist * 0.4);
     this._controls.target.set(centerX, centerZ, centerY);
     this._controls.update();
 
