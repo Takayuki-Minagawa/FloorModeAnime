@@ -37,7 +37,14 @@ function convertKeysToCamelCase(value) {
  * JSON 文字列をパースし、床構面データ構造に変換する。
  *
  * @param {string} jsonString  入力 JSON 文字列
- * @returns {{ meta: object, nodes: Map<number,{id:number,x:number,y:number,z:number}>, lines: Array<{id:number,nodeI:number,nodeJ:number}>, freqHz: Map<number,number>, modes: Map<number,Map<number,number>> }}
+ * @returns {{
+ *   meta: object,
+ *   nodes: Map<number,{id:number,x:number,y:number,z:number}>,
+ *   nodeIdCounts: Map<number,number>,
+ *   lines: Array<{id:number,nodeI:number,nodeJ:number}>,
+ *   freqHz: Map<number,number>,
+ *   modes: Map<number,Map<number,number>>
+ * }}
  * @throws {Error} JSON パースに失敗した場合
  */
 export function parseFloorData(jsonString) {
@@ -57,12 +64,14 @@ export function parseFloorData(jsonString) {
 
   // --- 4. nodes → Map<id, {id, x, y, z}> -----------------------------------
   const nodes = new Map();
+  const nodeIdCounts = new Map();
   if (Array.isArray(data.nodes)) {
     for (const n of data.nodes) {
       const id = Number(n.id);
       const x = Number(n.x ?? 0);
       const y = Number(n.y ?? 0);
       const z = Number(n.z ?? 0);
+      nodeIdCounts.set(id, (nodeIdCounts.get(id) ?? 0) + 1);
       nodes.set(id, { id, x, y, z });
     }
   }
@@ -115,5 +124,5 @@ export function parseFloorData(jsonString) {
     }
   }
 
-  return { meta, nodes, lines, freqHz, modes };
+  return { meta, nodes, nodeIdCounts, lines, freqHz, modes };
 }

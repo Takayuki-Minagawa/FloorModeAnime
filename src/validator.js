@@ -36,10 +36,10 @@ function pushWarning(list, code, message) {
 /**
  * parseFloorData の戻り値を検証し、エラー・警告を返す。
  *
- * @param {{ nodes: Map, lines: Array, freqHz: Map, modes: Map }} data
+ * @param {{ nodes: Map, nodeIdCounts?: Map, lines: Array, freqHz: Map, modes: Map }} data
  * @returns {{ errors: Array<{code:string,message:string}>, warnings: Array<{code:string,message:string}> }}
  */
-export function validateFloorData({ nodes, lines, freqHz, modes } = {}) {
+export function validateFloorData({ nodes, nodeIdCounts, lines, freqHz, modes } = {}) {
   const errors = [];
   const warnings = [];
   let limitReached;
@@ -68,17 +68,57 @@ export function validateFloorData({ nodes, lines, freqHz, modes } = {}) {
     if (limitReached) return { errors, warnings };
   }
 
-  // nodes.id 重複チェック（Map なので本来重複しないが、念のため走査）
+  // nodes.id / 座標値チェック
   if (nodes instanceof Map) {
+    for (const [id, node] of nodes) {
+      if (!Number.isInteger(id) || id <= 0) {
+        limitReached = pushError(errors, 'E_NODE_ID_INVALID', `node id=${id} must be a positive integer`);
+        if (limitReached) return { errors, warnings };
+      }
+
+      if (!node || typeof node !== 'object') {
+        limitReached = pushError(errors, 'E_NODE_INVALID', `nodes[${id}] is not an object`);
+        if (limitReached) return { errors, warnings };
+        continue;
+      }
+
+      for (const axis of ['x', 'y', 'z']) {
+        const value = node[axis];
+        if (typeof value !== 'number' || Number.isNaN(value)) {
+          limitReached = pushError(
+            errors,
+            'E_NODE_COORD_INVALID',
+            `nodes[${id}].${axis}=${value} is not a valid number`,
+          );
+          if (limitReached) return { errors, warnings };
+        } else if (!Number.isFinite(value)) {
+          limitReached = pushError(
+            errors,
+            'E_NODE_COORD_INVALID',
+            `nodes[${id}].${axis}=${value} must be finite`,
+          );
+          if (limitReached) return { errors, warnings };
+        }
+      }
+    }
+  }
+
+  // nodes.id 重複チェック（parser が返す nodeIdCounts を優先）
+  if (nodeIdCounts instanceof Map) {
+    for (const [id, count] of nodeIdCounts) {
+      if (count > 1) {
+        limitReached = pushError(errors, 'E_NODE_DUPLICATE', `node id=${id} is duplicated (${count} entries)`);
+        if (limitReached) return { errors, warnings };
+      }
+    }
+  } else if (nodes instanceof Map) {
     const seenNodeIds = new Set();
-    let idx = 0;
-    for (const [id] of nodes) {
+    for (const id of nodes.keys()) {
       if (seenNodeIds.has(id)) {
-        limitReached = pushError(errors, 'E_NODE_DUPLICATE', `nodes[${idx}].id=${id} is duplicated`);
+        limitReached = pushError(errors, 'E_NODE_DUPLICATE', `node id=${id} is duplicated`);
         if (limitReached) return { errors, warnings };
       }
       seenNodeIds.add(id);
-      idx++;
     }
   }
 
