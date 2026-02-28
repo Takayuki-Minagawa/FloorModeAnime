@@ -10,6 +10,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 export class FloorViewer {
   /**
@@ -24,6 +25,15 @@ export class FloorViewer {
     this._renderer.setClearColor(0xffffff, 1);
     this._renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
     canvasContainer.appendChild(this._renderer.domElement);
+
+    // CSS2D レンダラー（ノードラベル用オーバーレイ）
+    this._css2dRenderer = new CSS2DRenderer();
+    this._css2dRenderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+    this._css2dRenderer.domElement.style.position = 'absolute';
+    this._css2dRenderer.domElement.style.top = '0';
+    this._css2dRenderer.domElement.style.left = '0';
+    this._css2dRenderer.domElement.style.pointerEvents = 'none';
+    canvasContainer.appendChild(this._css2dRenderer.domElement);
 
     // シーン
     this._scene = new THREE.Scene();
@@ -48,11 +58,14 @@ export class FloorViewer {
     this._axesGroup.name = 'axes';
     this._gridGroup = new THREE.Group();
     this._gridGroup.name = 'grid';
+    this._labelsGroup = new THREE.Group();
+    this._labelsGroup.name = 'labels';
 
     this._scene.add(this._undeformedGroup);
     this._scene.add(this._deformedGroup);
     this._scene.add(this._axesGroup);
     this._scene.add(this._gridGroup);
+    this._scene.add(this._labelsGroup);
 
     // 変形線のジオメトリ参照 (updateDeformed で頂点を更新するため)
     this._deformedGeometry = null;
@@ -104,6 +117,7 @@ export class FloorViewer {
     this._clearGroup(this._deformedGroup);
     this._clearGroup(this._axesGroup);
     this._clearGroup(this._gridGroup);
+    this._clearGroup(this._labelsGroup);
 
     // テーマに合わせてクリアカラーを設定
     this._renderer.setClearColor(this._isDark ? 0x1a1a2e : 0xffffff, 1);
@@ -194,6 +208,16 @@ export class FloorViewer {
     this._camera.position.set(centerX + dist * 0.4, centerZ + dist * 0.7, centerY - dist * 0.85);
     this._controls.target.set(centerX, centerZ, centerY);
     this._controls.update();
+
+    // --- ノードIDラベル ---
+    for (const node of nodes.values()) {
+      const labelDiv = document.createElement('div');
+      labelDiv.className = 'node-label';
+      labelDiv.textContent = node.id;
+      const labelObj = new CSS2DObject(labelDiv);
+      labelObj.position.set(node.x, node.z, node.y);
+      this._labelsGroup.add(labelObj);
+    }
   }
 
   /**
@@ -231,11 +255,12 @@ export class FloorViewer {
    * 各要素の表示ON/OFF切替
    * @param {Object} visibility - { undeformed, deformed, axes, grid }
    */
-  setVisibility({ undeformed, deformed, axes, grid }) {
+  setVisibility({ undeformed, deformed, axes, grid, labels }) {
     if (undeformed !== undefined) this._undeformedGroup.visible = !!undeformed;
     if (deformed !== undefined) this._deformedGroup.visible = !!deformed;
     if (axes !== undefined) this._axesGroup.visible = !!axes;
     if (grid !== undefined) this._gridGroup.visible = !!grid;
+    if (labels !== undefined) this._labelsGroup.visible = !!labels;
   }
 
   /**
@@ -270,6 +295,7 @@ export class FloorViewer {
     this._camera.aspect = width / height;
     this._camera.updateProjectionMatrix();
     this._renderer.setSize(width, height);
+    this._css2dRenderer.setSize(width, height);
 
     // LineMaterial の解像度を更新
     if (this._undeformedMaterial) {
@@ -289,6 +315,7 @@ export class FloorViewer {
     this._disposeGroup(this._deformedGroup);
     this._disposeGroup(this._axesGroup);
     this._disposeGroup(this._gridGroup);
+    this._disposeGroup(this._labelsGroup);
 
     // コントロール破棄
     if (this._controls) {
@@ -303,6 +330,14 @@ export class FloorViewer {
         this._renderer.domElement.parentNode.removeChild(this._renderer.domElement);
       }
       this._renderer = null;
+    }
+
+    // CSS2D レンダラー破棄
+    if (this._css2dRenderer) {
+      if (this._css2dRenderer.domElement && this._css2dRenderer.domElement.parentNode) {
+        this._css2dRenderer.domElement.parentNode.removeChild(this._css2dRenderer.domElement);
+      }
+      this._css2dRenderer = null;
     }
 
     this._deformedGeometry = null;
@@ -354,6 +389,7 @@ export class FloorViewer {
     if (!this._renderer) return;
     this._controls.update();
     this._renderer.render(this._scene, this._camera);
+    this._css2dRenderer.render(this._scene, this._camera);
   }
 
   // --- 内部ヘルパー ---

@@ -52,8 +52,8 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
   const btnPlay = document.getElementById('btn-play');
   const btnStop = document.getElementById('btn-stop');
 
-  const onPlay = () => { animController.play(); };
-  const onStop = () => { animController.stop(); };
+  const onPlay = () => { animController.play(); applyVisibility(); };
+  const onStop = () => { animController.stop(); applyVisibility(); };
   replaceListener(btnPlay, 'click', onPlay, '_onPlay');
   replaceListener(btnStop, 'click', onStop, '_onStop');
 
@@ -92,12 +92,14 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
   const chkDeformed   = document.getElementById('chk-deformed');
   const chkAxes       = document.getElementById('chk-axes');
   const chkGrid       = document.getElementById('chk-grid');
+  const chkNodeIds    = document.getElementById('chk-node-ids');
 
   // 初期状態を全て checked に戻す
   chkUndeformed.checked = true;
   chkDeformed.checked   = true;
   chkAxes.checked       = true;
   chkGrid.checked       = true;
+  chkNodeIds.checked    = true;
 
   const applyVisibility = () => {
     viewer.setVisibility({
@@ -105,6 +107,7 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
       deformed:   chkDeformed.checked,
       axes:       chkAxes.checked,
       grid:       chkGrid.checked,
+      labels:     chkNodeIds.checked && !animController.isPlaying(),
     });
   };
 
@@ -116,6 +119,7 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
   replaceListener(chkDeformed,   'change', onVisChange, '_onVis');
   replaceListener(chkAxes,       'change', onVisChange, '_onVis');
   replaceListener(chkGrid,       'change', onVisChange, '_onVis');
+  replaceListener(chkNodeIds,    'change', onVisChange, '_onVis');
 
   // ---------- テーマ切替 ----------
   const btnTheme = document.getElementById('btn-theme');
