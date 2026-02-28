@@ -4,6 +4,8 @@
  * @module ui
  */
 
+import { t, setLang, getLang, applyTranslations } from './i18n.js';
+
 /**
  * UI 要素のイベントリスナーを設定する。
  *
@@ -24,7 +26,7 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
   for (const modeNum of modeList) {
     const opt = document.createElement('option');
     opt.value = String(modeNum);
-    opt.textContent = `Mode ${modeNum}`;
+    opt.textContent = t('modeOption', { n: modeNum });
     modeSelect.appendChild(opt);
   }
 
@@ -110,12 +112,44 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
   replaceListener(chkAxes,       'change', onVisChange, '_onVis');
   replaceListener(chkGrid,       'change', onVisChange, '_onVis');
 
+  // ---------- テーマ切替 ----------
+  const btnTheme = document.getElementById('btn-theme');
+  const onThemeToggle = () => {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') !== 'dark';
+    html.setAttribute('data-theme', isDark ? 'dark' : '');
+    viewer.setThemeColors(isDark);
+    btnTheme.textContent = t(isDark ? 'btnThemeDark' : 'btnThemeLight');
+    localStorage.setItem('floor-mode-theme', isDark ? 'dark' : 'light');
+  };
+  replaceListener(btnTheme, 'click', onThemeToggle, '_onThemeToggle');
+
+  // ---------- 言語切替 ----------
+  const btnLang = document.getElementById('btn-lang');
+  const onLangToggle = () => {
+    const newLang = getLang() === 'ja' ? 'en' : 'ja';
+    setLang(newLang);
+    applyTranslations();
+    btnLang.textContent = t('btnLang');
+    // テーマボタンのテキストも更新
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    btnTheme.textContent = t(isDark ? 'btnThemeDark' : 'btnThemeLight');
+    // モード選択を再構築
+    rebuildModeOptions(modeSelect, animController);
+    // 時間表示更新
+    updateTimeDisplay(animController.getTime());
+    // ヘルプ内容更新
+    const helpContent = document.getElementById('help-content');
+    if (helpContent) helpContent.textContent = t('helpContent');
+  };
+  replaceListener(btnLang, 'click', onLangToggle, '_onLangToggle');
+
   // ---------- PNG 保存ボタン ----------
   const btnDownload = document.getElementById('btn-download');
 
   const onDownload = async () => {
     if (animController.isPlaying()) {
-      alert('PNG保存はアニメーション停止中のみ実行できます。\nPlease stop the animation first.');
+      alert(t('alertPngStop'));
       return;
     }
 
@@ -124,7 +158,7 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
       await viewer.savePNG(filename);
     } catch (err) {
       console.error('PNG save failed:', err);
-      alert(`PNG save failed: ${err.message}`);
+      alert(t('alertPngFail', { msg: err.message }));
     }
   };
   replaceListener(btnDownload, 'click', onDownload, '_onDownload');
@@ -141,7 +175,7 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
       onFileLoad(reader.result);
     };
     reader.onerror = () => {
-      alert(`File read error: ${reader.error.message}`);
+      alert(t('alertFileError', { msg: reader.error.message }));
     };
     reader.readAsText(file);
 
@@ -152,21 +186,37 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
 
   // ---------- 時間表示を初期状態に ----------
   updateTimeDisplay(animController.getTime());
+
+  // ヘルプ内容設定
+  const helpContent = document.getElementById('help-content');
+  if (helpContent) helpContent.textContent = t('helpContent');
 }
 
 /**
  * 時間表示を更新する。
  *
- * @param {number} t  現在時刻 [s]
+ * @param {number} time  現在時刻 [s]
  */
-export function updateTimeDisplay(t) {
+export function updateTimeDisplay(time) {
   const el = document.getElementById('time-display');
   if (el) {
-    el.textContent = `t = ${t.toFixed(3)} s`;
+    el.textContent = t('timeDisplay', { t: time.toFixed(3) });
   }
 }
 
 // ─── ヘルパー ───────────────────────────────────────────────────────────────
+
+function rebuildModeOptions(selectEl, animCtrl) {
+  const currentValue = selectEl.value;
+  selectEl.innerHTML = '';
+  for (const modeNum of animCtrl.getModeList()) {
+    const opt = document.createElement('option');
+    opt.value = String(modeNum);
+    opt.textContent = t('modeOption', { n: modeNum });
+    selectEl.appendChild(opt);
+  }
+  selectEl.value = currentValue;
+}
 
 /**
  * 要素のイベントリスナーを安全に差し替える。
