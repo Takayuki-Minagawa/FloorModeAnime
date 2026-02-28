@@ -5,7 +5,7 @@
 GitHub Pagesでそのまま公開できる構成。
 
 ## 技術スタック（固定）
-- Vite + Vanilla JS (ESM) + three.js + OrbitControls
+- Vite + Vanilla JS (ESM) + three.js + OrbitControls + CSS2DRenderer + LineSegments2
 - サーバー処理なし（静的ホスティング前提）
 - Node.js / npm
 
@@ -25,6 +25,7 @@ GitHub Pagesでそのまま公開できる構成。
     parser.js        # JSON読込・型変換・既定値適用
     validator.js     # 構造整合チェック・エラー収集
     ui.js            # UIコントロール・イベント管理
+    i18n.js          # 多言語対応 (ja / en)
     styles.css       # スタイル
   /public
     /Sample
@@ -81,9 +82,12 @@ export class AnimationController {
   play()                           // 再生開始
   stop()                           // 停止 (現フレーム保持)
   setScale(s)                      // 倍率 S 設定
+  setSpeed(speed)                  // 再生速度倍率 (0.2〜2.0)
   getTime() → number               // 現在 t [s]
   isPlaying() → boolean
   getDisplacedZ(nodeId) → number   // z_i'(t)
+  getFreqHz(modeNum?) → number     // 振動数 [Hz]
+  getModeList() → Array<number>    // 利用可能モード一覧
   update(deltaTime)                // フレーム更新
 }
 ```
@@ -94,7 +98,7 @@ export class FloorViewer {
   constructor(canvasContainer)
   loadFloorData(floorData)         // シーン構築
   updateDeformed(getDisplacedZ)    // 変形線更新
-  setVisibility({ undeformed, deformed, axes, grid })
+  setVisibility({ undeformed, deformed, axes, grid, labels })
   savePNG(filename) → Promise      // 停止中のみ
   resize()
   dispose()
@@ -107,8 +111,12 @@ export class FloorViewer {
 - 再生/停止・フレーム保持
 - 時間表示 t[s] 小数第3位
 - 倍率スライダー 0.5〜3.0 反映
-- 表示切替 (未変形/変形/軸/グリッド)
+- 表示切替 (未変形/変形/軸/グリッド/節点番号)
+- 節点番号ラベル表示（アニメ中は自動非表示）
+- モード切替時に振動数 [Hz] 表示
 - OrbitControls (回転/パン/ズーム)
 - 停止中のみPNG保存
 - 不正データでエラー一覧表示
+- 日本語/英語切替
+- ダーク/ライトテーマ切替
 - GitHub Pages動作
