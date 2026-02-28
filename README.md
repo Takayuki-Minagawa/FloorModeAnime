@@ -119,6 +119,7 @@ z_i'(t) = z_i + u_i(t)
 | Mode | モード番号の切替。切替時に `t = 0` でリセット |
 | Play / Stop | アニメーションの再生と停止（停止時はフレーム保持） |
 | Time | 経過時間 `t [s]` の表示（小数第 3 位まで） |
+| Speed | 再生速度の調整（0.2x 〜 2.0x、刻み 0.1） |
 | Scale | 変形倍率の調整（0.5 〜 3.0、刻み 0.1） |
 | Visibility | 未変形線・変形線・軸・グリッドの表示切替 |
 | Save PNG | 停止中のみ有効。3D 画面を PNG 画像として保存 |
@@ -148,11 +149,11 @@ FloorModeAnime/
 
 ## GitHub Pages へのデプロイ
 
-1. `npm run build` を実行（`docs/` にビルド出力が生成されます）
-2. `docs/` を含めて GitHub にプッシュ
-3. リポジトリの **Settings > Pages** を開く
-4. **Build and deployment** で **Deploy from a branch** を選択
-5. Branch を `main`、Folder を `/docs` に設定して保存
+GitHub Actions により `main` ブランチへのプッシュ時に自動デプロイされます。
+
+1. リポジトリの **Settings > Pages** を開く
+2. **Build and deployment > Source** で **GitHub Actions** を選択
+3. `main` ブランチにプッシュすると自動的にビルド・デプロイが実行される
 
 ## 技術スタック
 

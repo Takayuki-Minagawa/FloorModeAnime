@@ -42,7 +42,7 @@ function pushWarning(list, code, message) {
 export function validateFloorData({ nodes, lines, freqHz, modes } = {}) {
   const errors = [];
   const warnings = [];
-  let limitReached = false;
+  let limitReached;
 
   // =========================================================================
   // 必須キー不足チェック

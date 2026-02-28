@@ -201,7 +201,7 @@ function buildPngFilename(floorData, animController) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9\-]/g, '');
+    .replace(/[^a-z0-9-]/g, '');
 
   // 現在のモード番号 — getModeList の先頭をフォールバックに使う
   const modeList = animController.getModeList();
