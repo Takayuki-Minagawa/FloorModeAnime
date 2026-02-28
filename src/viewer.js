@@ -1,12 +1,15 @@
 /**
  * viewer.js — three.js シーン・描画・PNG出力
  *
- * BufferGeometry + LineSegments で線を描画
- * 未変形線: 0x888888 (グレー)、変形線: 0xff4444 (赤)
+ * LineSegments2 + LineMaterial で太線を描画
+ * 未変形線: 0x888888 (グレー, 2px)、変形線: 0xff4444 (赤, 3px)
  */
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 
 export class FloorViewer {
   /**
@@ -56,9 +59,12 @@ export class FloorViewer {
     this._floorData = null;
     this._lFloor = 1;
 
-    // nodeId → 変形ジオメトリ内の頂点インデックスのマッピング
-    // lines の各線分について [nodeI のindex, nodeJ のindex] を保持
+    // nodeId → 変形ジオメトリ内のセグメントインデックスのマッピング
     this._deformedVertexMap = [];
+
+    // LineMaterial 参照（テーマ切替・リサイズ用）
+    this._undeformedMaterial = null;
+    this._deformedMaterial = null;
 
     this._isDark = false;
   }
@@ -102,7 +108,13 @@ export class FloorViewer {
     // テーマに合わせてクリアカラーを設定
     this._renderer.setClearColor(this._isDark ? 0x1a1a2e : 0xffffff, 1);
 
-    // --- 未変形線 (グレー 0x888888) ---
+    // 解像度（LineMaterial に必要）
+    const resolution = new THREE.Vector2(
+      this._container.clientWidth,
+      this._container.clientHeight
+    );
+
+    // --- 未変形線 (グレー 0x888888, 2px) ---
     // 座標マッピング: data(x,y,z) → three.js(x, z, y)
     //   data.x → three.x
     //   data.z → three.y (鉛直方向 = three.js の上方向)
@@ -116,19 +128,21 @@ export class FloorViewer {
       undeformedPositions.push(nj.x, nj.z, nj.y);
     }
 
-    const undeformedGeo = new THREE.BufferGeometry();
-    undeformedGeo.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(undeformedPositions, 3)
-    );
-    const undeformedMat = new THREE.LineBasicMaterial({ color: this._isDark ? 0xaaaaaa : 0x888888 });
-    const undeformedLines = new THREE.LineSegments(undeformedGeo, undeformedMat);
+    const undeformedGeo = new LineSegmentsGeometry();
+    undeformedGeo.setPositions(undeformedPositions);
+    this._undeformedMaterial = new LineMaterial({
+      color: this._isDark ? 0xaaaaaa : 0x888888,
+      linewidth: 2,
+      resolution: resolution,
+    });
+    const undeformedLines = new LineSegments2(undeformedGeo, this._undeformedMaterial);
+    undeformedLines.computeLineDistances();
     this._undeformedGroup.add(undeformedLines);
 
-    // --- 変形線 (赤 0xff4444) ---
+    // --- 変形線 (赤 0xff4444, 3px) ---
     const deformedPositions = [];
     this._deformedVertexMap = [];
-    let vertexIndex = 0;
+    let segmentIndex = 0;
 
     for (const line of lines) {
       const ni = nodes.get(line.nodeI);
@@ -142,19 +156,20 @@ export class FloorViewer {
       this._deformedVertexMap.push({
         nodeI: line.nodeI,
         nodeJ: line.nodeJ,
-        indexI: vertexIndex,
-        indexJ: vertexIndex + 1,
+        segmentIndex: segmentIndex,
       });
-      vertexIndex += 2;
+      segmentIndex++;
     }
 
-    this._deformedGeometry = new THREE.BufferGeometry();
-    this._deformedGeometry.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(deformedPositions, 3)
-    );
-    const deformedMat = new THREE.LineBasicMaterial({ color: this._isDark ? 0xff6666 : 0xff4444 });
-    const deformedLines = new THREE.LineSegments(this._deformedGeometry, deformedMat);
+    this._deformedGeometry = new LineSegmentsGeometry();
+    this._deformedGeometry.setPositions(deformedPositions);
+    this._deformedMaterial = new LineMaterial({
+      color: this._isDark ? 0xff6666 : 0xff4444,
+      linewidth: 3,
+      resolution: resolution,
+    });
+    const deformedLines = new LineSegments2(this._deformedGeometry, this._deformedMaterial);
+    deformedLines.computeLineDistances();
     this._deformedGroup.add(deformedLines);
 
     // --- AxesHelper ---
@@ -183,13 +198,16 @@ export class FloorViewer {
   }
 
   /**
-   * 変形線の各頂点Z座標を更新
+   * 変形線の各頂点座標を更新
    * @param {Function} getDisplacedZ - (nodeId) => number
    */
   updateDeformed(getDisplacedZ) {
     if (!this._deformedGeometry || !this._floorData) return;
 
-    const posAttr = this._deformedGeometry.getAttribute('position');
+    const startAttr = this._deformedGeometry.getAttribute('instanceStart');
+    const endAttr = this._deformedGeometry.getAttribute('instanceEnd');
+    if (!startAttr || !endAttr) return;
+
     const nodes = this._floorData.nodes;
 
     for (const entry of this._deformedVertexMap) {
@@ -201,11 +219,13 @@ export class FloorViewer {
       const zJ = getDisplacedZ(entry.nodeJ);
 
       // three.js 座標系: x=x, y=z(上), z=y(奥)
-      posAttr.setXYZ(entry.indexI, ni.x, zI, ni.y);
-      posAttr.setXYZ(entry.indexJ, nj.x, zJ, nj.y);
+      startAttr.setXYZ(entry.segmentIndex, ni.x, zI, ni.y);
+      endAttr.setXYZ(entry.segmentIndex, nj.x, zJ, nj.y);
     }
 
-    posAttr.needsUpdate = true;
+    // instanceStart と instanceEnd は同じ InstancedInterleavedBuffer を共有
+    startAttr.data.needsUpdate = true;
+    this._deformedGeometry.computeBoundingSphere();
   }
 
   /**
@@ -251,6 +271,14 @@ export class FloorViewer {
     this._camera.aspect = width / height;
     this._camera.updateProjectionMatrix();
     this._renderer.setSize(width, height);
+
+    // LineMaterial の解像度を更新
+    if (this._undeformedMaterial) {
+      this._undeformedMaterial.resolution.set(width, height);
+    }
+    if (this._deformedMaterial) {
+      this._deformedMaterial.resolution.set(width, height);
+    }
   }
 
   /**
@@ -279,6 +307,8 @@ export class FloorViewer {
     }
 
     this._deformedGeometry = null;
+    this._undeformedMaterial = null;
+    this._deformedMaterial = null;
     this._floorData = null;
   }
 
@@ -295,20 +325,14 @@ export class FloorViewer {
     this._renderer.setClearColor(isDark ? 0x1a1a2e : 0xffffff, 1);
 
     // Undeformed lines: ダーク時は明るめグレーで視認性確保
-    const undeformedColor = isDark ? 0xaaaaaa : 0x888888;
-    this._undeformedGroup.traverse((child) => {
-      if (child.isLineSegments && child.material && child.material.color) {
-        child.material.color.setHex(undeformedColor);
-      }
-    });
+    if (this._undeformedMaterial) {
+      this._undeformedMaterial.color.setHex(isDark ? 0xaaaaaa : 0x888888);
+    }
 
     // Deformed lines: ダーク時は明るめ赤で暗背景に映える
-    const deformedColor = isDark ? 0xff6666 : 0xff4444;
-    this._deformedGroup.traverse((child) => {
-      if (child.isLineSegments && child.material && child.material.color) {
-        child.material.color.setHex(deformedColor);
-      }
-    });
+    if (this._deformedMaterial) {
+      this._deformedMaterial.color.setHex(isDark ? 0xff6666 : 0xff4444);
+    }
 
     // Grid: ダーク時は控えめに抑えて線を邪魔しない
     const gridColor = isDark ? 0x444466 : 0xcccccc;

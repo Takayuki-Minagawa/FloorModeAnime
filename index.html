@@ -68,8 +68,12 @@
 
       <!-- ファイル読込 -->
       <div class="control-group">
-        <label for="file-input" data-i18n="labelLoadJson">JSON読込</label>
-        <input id="file-input" type="file" accept=".json">
+        <label data-i18n="labelLoadJson">JSON読込</label>
+        <input id="file-input" type="file" accept=".json" hidden>
+        <div class="file-row">
+          <button id="btn-select-file" type="button" data-i18n="btnSelectFile">ファイルを選択</button>
+          <span id="file-name-display">選択なし</span>
+        </div>
         <span class="file-hint" data-i18n="fileInputHint">解析結果のJSONファイルを選択して読み込みます</span>
       </div>
 
