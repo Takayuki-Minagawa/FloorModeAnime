@@ -184,6 +184,18 @@ export class AnimationController {
   }
 
   /**
+   * 指定モード（省略時は現在モード）の振動数 [Hz] を返す
+   * @param {number} [modeNum]
+   * @returns {number}
+   */
+  getFreqHz(modeNum) {
+    if (modeNum === undefined || modeNum === null) {
+      modeNum = this._currentMode;
+    }
+    return this._freqHz.get(modeNum) || 0;
+  }
+
+  /**
    * 現在のモード番号
    * @returns {number}
    */

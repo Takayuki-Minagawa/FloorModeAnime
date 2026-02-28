@@ -26,7 +26,8 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
   for (const modeNum of modeList) {
     const opt = document.createElement('option');
     opt.value = String(modeNum);
-    opt.textContent = t('modeOption', { n: modeNum });
+    const freq = animController.getFreqHz(modeNum);
+    opt.textContent = t('modeOption', { n: modeNum, f: freq.toFixed(2) });
     modeSelect.appendChild(opt);
   }
 
@@ -35,10 +36,14 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
     modeSelect.value = String(modeList[0]);
   }
 
+  // 振動数表示を初期化
+  updateFreqDisplay(animController);
+
   // change イベント — 新しいリスナーだけ残す
   const onModeChange = () => {
     const n = Number(modeSelect.value);
     animController.setMode(n);
+    updateFreqDisplay(animController);
     updateTimeDisplay(animController.getTime());
   };
   replaceListener(modeSelect, 'change', onModeChange, '_onModeChange');
@@ -221,6 +226,19 @@ export function updateTimeDisplay(time) {
   }
 }
 
+/**
+ * 振動数表示を更新する。
+ *
+ * @param {import('./animation.js').AnimationController} animController
+ */
+function updateFreqDisplay(animController) {
+  const el = document.getElementById('freq-display');
+  if (el) {
+    const freq = animController.getFreqHz();
+    el.textContent = t('freqDisplay', { f: freq.toFixed(2) });
+  }
+}
+
 // ─── ヘルパー ───────────────────────────────────────────────────────────────
 
 function rebuildModeOptions(selectEl, animCtrl) {
@@ -229,7 +247,8 @@ function rebuildModeOptions(selectEl, animCtrl) {
   for (const modeNum of animCtrl.getModeList()) {
     const opt = document.createElement('option');
     opt.value = String(modeNum);
-    opt.textContent = t('modeOption', { n: modeNum });
+    const freq = animCtrl.getFreqHz(modeNum);
+    opt.textContent = t('modeOption', { n: modeNum, f: freq.toFixed(2) });
     selectEl.appendChild(opt);
   }
   selectEl.value = currentValue;

@@ -206,6 +206,15 @@ button:active {
   text-align: center;
 }
 
+/* --- 振動数表示 --------------------------------------------------------- */
+#freq-display {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 2px 0;
+}
+
 /* --- 時間表示 ----------------------------------------------------------- */
 #time-display {
   font-family: "Courier New", Courier, monospace;
