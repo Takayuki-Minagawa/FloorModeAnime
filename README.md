@@ -31,7 +31,7 @@ GitHub Pages でそのまま公開でき、サーバーサイド処理は不要�
 
 ```bash
 # リポジトリのクローン
-git clone https://github.com/<your-username>/FloorModeAnime.git
+git clone https://github.com/Takayuki-Minagawa/FloorModeAnime.git
 cd FloorModeAnime
 
 # 依存パッケージのインストール
@@ -123,6 +123,7 @@ z_i'(t) = z_i + u_i(t)
 
 | コントロール | 説明 |
 |---|---|
+| 3D View | 初期表示は左下に基準が来る 3D 視点。マウスで自由に回転・パン・ズーム可能 |
 | Mode | モード番号の切替。切替時に `t = 0` でリセット |
 | Play / Stop | アニメーションの再生と停止（停止時はフレーム保持） |
 | Time | 経過時間 `t [s]` の表示（小数第 3 位まで） |
