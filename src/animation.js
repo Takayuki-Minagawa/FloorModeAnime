@@ -40,7 +40,8 @@ export class AnimationController {
 
     // 状態初期化
     this._currentMode = null;
-    this._scale = 1.0;     // S: 倍率
+    this._scale = 1.0;     // S: 変形倍率
+    this._speed = 1.0;     // 再生速度倍率 (0.2〜2.0)
     this._time = 0;        // t [s]
     this._playing = false;
 
@@ -157,12 +158,28 @@ export class AnimationController {
   }
 
   /**
+   * 再生速度倍率を設定 (0.2〜2.0 をクランプ)
+   * @param {number} speed
+   */
+  setSpeed(speed) {
+    this._speed = Math.max(0.2, Math.min(2.0, speed));
+  }
+
+  /**
+   * 再生速度倍率を返す
+   * @returns {number}
+   */
+  getSpeed() {
+    return this._speed;
+  }
+
+  /**
    * フレーム更新 (再生中のみ t を進める)
    * @param {number} deltaTime - 経過時間 [s]
    */
   update(deltaTime) {
     if (this._playing) {
-      this._time += deltaTime;
+      this._time += deltaTime * this._speed;
     }
   }
 

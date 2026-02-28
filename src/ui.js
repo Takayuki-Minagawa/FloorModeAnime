@@ -50,11 +50,25 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
   replaceListener(btnPlay, 'click', onPlay, '_onPlay');
   replaceListener(btnStop, 'click', onStop, '_onStop');
 
-  // ---------- 倍率スライダー ----------
+  // ---------- 速度スライダー ----------
+  const speedSlider = document.getElementById('speed-slider');
+  const speedValue  = document.getElementById('speed-value');
+
+  speedSlider.value = '1.0';
+  speedValue.textContent = '1.0';
+  animController.setSpeed(1.0);
+
+  const onSpeedInput = () => {
+    const sp = parseFloat(speedSlider.value);
+    animController.setSpeed(sp);
+    speedValue.textContent = sp.toFixed(1);
+  };
+  replaceListener(speedSlider, 'input', onSpeedInput, '_onSpeedInput');
+
+  // ---------- 変形倍率スライダー ----------
   const scaleSlider = document.getElementById('scale-slider');
   const scaleValue  = document.getElementById('scale-value');
 
-  // 初期値をリセット
   scaleSlider.value = '1.0';
   scaleValue.textContent = '1.0';
   animController.setScale(1.0);
