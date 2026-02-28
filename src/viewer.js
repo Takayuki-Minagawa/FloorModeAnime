@@ -202,10 +202,9 @@ export class FloorViewer {
 
     // --- カメラ位置調整 ---
     // 原点(軸)がビューポート左下に来るよう配置
-    // 正面寄り(大きな-Z offset)・少し右(小さな+X offset)のアングルで、
-    // data.X増→画面右, data.Y増→画面上, 原点→画面左下 となる
+    // 右寄り(大きな+X offset)・少し奥(小さな+Z offset)のアングル
     const dist = this._lFloor * 1.5;
-    this._camera.position.set(centerY + dist * 0.4, centerZ + dist * 0.7, centerX - dist * 0.85);
+    this._camera.position.set(centerY + dist * 0.85, centerZ + dist * 0.7, centerX + dist * 0.4);
     this._controls.target.set(centerY, centerZ, centerX);
     this._controls.update();
 
