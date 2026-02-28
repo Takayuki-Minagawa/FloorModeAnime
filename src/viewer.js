@@ -45,11 +45,14 @@ export class FloorViewer {
     this._axesGroup.name = 'axes';
     this._gridGroup = new THREE.Group();
     this._gridGroup.name = 'grid';
+    this._refLinesGroup = new THREE.Group();
+    this._refLinesGroup.name = 'refLines';
 
     this._scene.add(this._undeformedGroup);
     this._scene.add(this._deformedGroup);
     this._scene.add(this._axesGroup);
     this._scene.add(this._gridGroup);
+    this._scene.add(this._refLinesGroup);
 
     // 変形線のジオメトリ参照 (updateDeformed で頂点を更新するため)
     this._deformedGeometry = null;
@@ -98,6 +101,7 @@ export class FloorViewer {
     this._clearGroup(this._deformedGroup);
     this._clearGroup(this._axesGroup);
     this._clearGroup(this._gridGroup);
+    this._clearGroup(this._refLinesGroup);
 
     // テーマに合わせてクリアカラーを設定
     this._renderer.setClearColor(this._isDark ? 0x1a1a2e : 0xffffff, 1);
@@ -171,9 +175,30 @@ export class FloorViewer {
     grid.position.set(centerX, centerZ, centerY);
     this._gridGroup.add(grid);
 
-    // --- カメラ位置調整 ---
+    // --- 基準鉛直ライン（緑）---
+    // 各ノード位置からグリッド平面レベルまでの鉛直線
+    const refPositions = [];
+    const gridY = centerZ; // グリッド平面の three.js Y 座標
+    for (const node of nodes.values()) {
+      // ノード位置: three.js (node.x, node.z, node.y)
+      // グリッド面: three.js (node.x, gridY, node.y)
+      refPositions.push(node.x, node.z, node.y);
+      refPositions.push(node.x, gridY, node.y);
+    }
+    if (refPositions.length > 0) {
+      const refGeo = new THREE.BufferGeometry();
+      refGeo.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute(refPositions, 3)
+      );
+      const refMat = new THREE.LineBasicMaterial({ color: this._isDark ? 0x44dd88 : 0x00cc66 });
+      const refLines = new THREE.LineSegments(refGeo, refMat);
+      this._refLinesGroup.add(refLines);
+    }
+
+    // --- カメラ位置調整（左下に基準が来る3Dビュー）---
     const dist = this._lFloor * 1.5;
-    this._camera.position.set(centerX + dist, centerZ + dist * 0.8, centerY + dist);
+    this._camera.position.set(centerX - dist, centerZ + dist * 0.5, centerY - dist);
     this._controls.target.set(centerX, centerZ, centerY);
     this._controls.update();
   }
@@ -208,11 +233,12 @@ export class FloorViewer {
    * 各要素の表示ON/OFF切替
    * @param {Object} visibility - { undeformed, deformed, axes, grid }
    */
-  setVisibility({ undeformed, deformed, axes, grid }) {
+  setVisibility({ undeformed, deformed, axes, grid, refLines }) {
     if (undeformed !== undefined) this._undeformedGroup.visible = !!undeformed;
     if (deformed !== undefined) this._deformedGroup.visible = !!deformed;
     if (axes !== undefined) this._axesGroup.visible = !!axes;
     if (grid !== undefined) this._gridGroup.visible = !!grid;
+    if (refLines !== undefined) this._refLinesGroup.visible = !!refLines;
   }
 
   /**
@@ -258,6 +284,7 @@ export class FloorViewer {
     this._disposeGroup(this._deformedGroup);
     this._disposeGroup(this._axesGroup);
     this._disposeGroup(this._gridGroup);
+    this._disposeGroup(this._refLinesGroup);
 
     // コントロール破棄
     if (this._controls) {
@@ -315,6 +342,14 @@ export class FloorViewer {
         } else if (child.material.color) {
           child.material.color.setHex(gridColor);
         }
+      }
+    });
+
+    // Ref lines: ダーク時は明るめ緑で視認性確保
+    const refColor = isDark ? 0x44dd88 : 0x00cc66;
+    this._refLinesGroup.traverse((child) => {
+      if (child.isLineSegments && child.material && child.material.color) {
+        child.material.color.setHex(refColor);
       }
     });
   }

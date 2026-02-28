@@ -87,12 +87,14 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
   const chkDeformed   = document.getElementById('chk-deformed');
   const chkAxes       = document.getElementById('chk-axes');
   const chkGrid       = document.getElementById('chk-grid');
+  const chkRefLines   = document.getElementById('chk-reflines');
 
   // 初期状態を全て checked に戻す
   chkUndeformed.checked = true;
   chkDeformed.checked   = true;
   chkAxes.checked       = true;
   chkGrid.checked       = true;
+  chkRefLines.checked   = true;
 
   const applyVisibility = () => {
     viewer.setVisibility({
@@ -100,6 +102,7 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
       deformed:   chkDeformed.checked,
       axes:       chkAxes.checked,
       grid:       chkGrid.checked,
+      refLines:   chkRefLines.checked,
     });
   };
 
@@ -111,6 +114,7 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
   replaceListener(chkDeformed,   'change', onVisChange, '_onVis');
   replaceListener(chkAxes,       'change', onVisChange, '_onVis');
   replaceListener(chkGrid,       'change', onVisChange, '_onVis');
+  replaceListener(chkRefLines,   'change', onVisChange, '_onVis');
 
   // ---------- テーマ切替 ----------
   const btnTheme = document.getElementById('btn-theme');
