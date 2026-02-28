@@ -264,6 +264,12 @@ input[type="range"] {
   color: var(--text-secondary);
 }
 
+.file-hint {
+  font-size: 11px;
+  color: var(--text-label);
+  line-height: 1.4;
+}
+
 /* --- ヘルプセクション --------------------------------------------------- */
 #help-section {
   border-top: 1px solid var(--border-color);
