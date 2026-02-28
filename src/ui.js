@@ -141,6 +141,9 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
     // ヘルプ内容更新
     const helpContent = document.getElementById('help-content');
     if (helpContent) helpContent.textContent = t('helpContent');
+    // ファイル名表示更新（ファイル未選択時のみ）
+    const fnd = document.getElementById('file-name-display');
+    if (fnd && !fnd._hasFile) fnd.textContent = t('fileNameNone');
   };
   replaceListener(btnLang, 'click', onLangToggle, '_onLangToggle');
 
@@ -165,10 +168,24 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
 
   // ---------- ファイル読込 ----------
   const fileInput = document.getElementById('file-input');
+  const btnSelectFile = document.getElementById('btn-select-file');
+  const fileNameDisplay = document.getElementById('file-name-display');
+
+  // ファイル名表示を初期化
+  fileNameDisplay.textContent = t('fileNameNone');
+  fileNameDisplay._hasFile = false;
+
+  // カスタムボタンでhidden inputをトリガー
+  const onSelectFile = () => { fileInput.click(); };
+  replaceListener(btnSelectFile, 'click', onSelectFile, '_onSelectFile');
 
   const onFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // ファイル名を表示
+    fileNameDisplay.textContent = file.name;
+    fileNameDisplay._hasFile = true;
 
     const reader = new FileReader();
     reader.onload = () => {
