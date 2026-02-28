@@ -33,6 +33,12 @@ GitHub Pagesでそのまま公開できる構成。
   /docs              # ビルド出力 (GitHub Pages用)
 ```
 
+## 座標系（右手系）
+- X軸: data.y → three.x（Node1→4方向）
+- Y軸(鉛直上): data.z → three.y
+- Z軸: data.x → three.z（Node1→2方向）
+- 床平面の法線方向 = +Z（鉛直上向き）
+
 ## コーディング規約
 - 言語: Vanilla JS (ESM), `import/export` 使用
 - 浮動小数比較: `EPS = 1e-9`
