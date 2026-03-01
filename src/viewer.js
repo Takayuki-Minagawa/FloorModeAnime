@@ -358,6 +358,22 @@ export class FloorViewer {
   }
 
   /**
+   * 現在のマテリアル色を CSS 16進数文字列で返す
+   * テーマ切替・ユーザー指定の両方を反映した実際の描画色
+   * @returns {{ undeformedColor: string, deformedColor: string }}
+   */
+  getLineColors() {
+    const toHex = (mat) => {
+      if (!mat) return '#000000';
+      return '#' + mat.color.getHexString();
+    };
+    return {
+      undeformedColor: toHex(this._undeformedMaterial),
+      deformedColor:   toHex(this._deformedMaterial),
+    };
+  }
+
+  /**
    * 線の色・太さをユーザー指定値で更新する
    * @param {object} style
    * @param {string|number|null} [style.undeformedColor] - CSS色文字列 or 0xRRGGBB
