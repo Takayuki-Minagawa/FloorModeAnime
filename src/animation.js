@@ -71,6 +71,7 @@ export class AnimationController {
     const rangeX = maxX - minX;
     const rangeY = maxY - minY;
     this._lFloor = Math.max(rangeX, rangeY);
+    if (this._lFloor === 0) this._lFloor = 1; // 全節点が同一座標の場合ゼロ除算を回避
     this._aRef = this._lFloor / 10;
   }
 

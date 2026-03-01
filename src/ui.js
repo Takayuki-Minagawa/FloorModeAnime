@@ -129,6 +129,11 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
   const widthDeformed    = document.getElementById('width-deformed');
   const widthDefVal      = document.getElementById('width-deformed-val');
 
+  // カラーピッカーをビューアーの現在のマテリアル色（テーマ反映済み）に同期
+  const lineColors = viewer.getLineColors();
+  colorUndeformed.value = lineColors.undeformedColor;
+  colorDeformed.value   = lineColors.deformedColor;
+
   const onColorUndeformed = () => {
     viewer.setLineStyle({ undeformedColor: colorUndeformed.value });
   };
