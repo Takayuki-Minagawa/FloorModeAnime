@@ -1,6 +1,6 @@
 {
   "name": "floor-mode-anime",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "床構面の鉛直成分モード形 3Dアニメーション表示 静的Webアプリ",
   "type": "module",
   "scripts": {
