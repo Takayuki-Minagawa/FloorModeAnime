@@ -80,6 +80,14 @@ export class FloorViewer {
     this._deformedMaterial = null;
 
     this._isDark = false;
+
+    // ユーザー指定の線スタイル（null = テーマデフォルト使用）
+    this._userLineStyle = {
+      undeformedColor: null,
+      undeformedWidth: null,
+      deformedColor: null,
+      deformedWidth: null,
+    };
   }
 
   /**
@@ -185,6 +193,9 @@ export class FloorViewer {
     const deformedLines = new LineSegments2(this._deformedGeometry, this._deformedMaterial);
     deformedLines.computeLineDistances();
     this._deformedGroup.add(deformedLines);
+
+    // ユーザー指定スタイルが残っていれば再適用
+    this._applyUserLineStyle();
 
     // --- AxesHelper ---
     const axesSize = this._lFloor * 0.5;
@@ -347,6 +358,38 @@ export class FloorViewer {
   }
 
   /**
+   * 線の色・太さをユーザー指定値で更新する
+   * @param {object} style
+   * @param {string|number|null} [style.undeformedColor] - CSS色文字列 or 0xRRGGBB
+   * @param {number|null}        [style.undeformedWidth] - 線幅 px
+   * @param {string|number|null} [style.deformedColor]
+   * @param {number|null}        [style.deformedWidth]
+   */
+  setLineStyle({ undeformedColor, undeformedWidth, deformedColor, deformedWidth } = {}) {
+    if (undeformedColor !== undefined) this._userLineStyle.undeformedColor = undeformedColor;
+    if (undeformedWidth !== undefined) this._userLineStyle.undeformedWidth = undeformedWidth;
+    if (deformedColor !== undefined)   this._userLineStyle.deformedColor   = deformedColor;
+    if (deformedWidth !== undefined)   this._userLineStyle.deformedWidth   = deformedWidth;
+    this._applyUserLineStyle();
+  }
+
+  /** ユーザー指定スタイルをマテリアルに適用する（内部用） */
+  _applyUserLineStyle() {
+    if (this._undeformedMaterial) {
+      if (this._userLineStyle.undeformedColor !== null)
+        this._undeformedMaterial.color.set(this._userLineStyle.undeformedColor);
+      if (this._userLineStyle.undeformedWidth !== null)
+        this._undeformedMaterial.linewidth = this._userLineStyle.undeformedWidth;
+    }
+    if (this._deformedMaterial) {
+      if (this._userLineStyle.deformedColor !== null)
+        this._deformedMaterial.color.set(this._userLineStyle.deformedColor);
+      if (this._userLineStyle.deformedWidth !== null)
+        this._deformedMaterial.linewidth = this._userLineStyle.deformedWidth;
+    }
+  }
+
+  /**
    * テーマに応じてレンダラー・マテリアルの色を切り替える
    * @param {boolean} isDark
    */
@@ -358,13 +401,13 @@ export class FloorViewer {
     // Renderer clear color
     this._renderer.setClearColor(isDark ? 0x1a1a2e : 0xffffff, 1);
 
-    // Undeformed lines: ダーク時は明るめグレーで視認性確保
-    if (this._undeformedMaterial) {
+    // Undeformed lines: ユーザー指定がない場合のみテーマデフォルトを適用
+    if (this._undeformedMaterial && this._userLineStyle.undeformedColor === null) {
       this._undeformedMaterial.color.setHex(isDark ? 0xaaaaaa : 0x888888);
     }
 
-    // Deformed lines: ダーク時は明るめ赤で暗背景に映える
-    if (this._deformedMaterial) {
+    // Deformed lines: ユーザー指定がない場合のみテーマデフォルトを適用
+    if (this._deformedMaterial && this._userLineStyle.deformedColor === null) {
       this._deformedMaterial.color.setHex(isDark ? 0xff6666 : 0xff4444);
     }
 

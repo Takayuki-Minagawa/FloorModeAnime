@@ -121,6 +121,36 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
   replaceListener(chkGrid,       'change', onVisChange, '_onVis');
   replaceListener(chkNodeIds,    'change', onVisChange, '_onVis');
 
+  // ---------- 線の設定（色・太さ） ----------
+  const colorUndeformed  = document.getElementById('color-undeformed');
+  const widthUndeformed  = document.getElementById('width-undeformed');
+  const widthUndefVal    = document.getElementById('width-undeformed-val');
+  const colorDeformed    = document.getElementById('color-deformed');
+  const widthDeformed    = document.getElementById('width-deformed');
+  const widthDefVal      = document.getElementById('width-deformed-val');
+
+  const onColorUndeformed = () => {
+    viewer.setLineStyle({ undeformedColor: colorUndeformed.value });
+  };
+  const onWidthUndeformed = () => {
+    const w = parseFloat(widthUndeformed.value);
+    widthUndefVal.textContent = w.toFixed(1);
+    viewer.setLineStyle({ undeformedWidth: w });
+  };
+  const onColorDeformed = () => {
+    viewer.setLineStyle({ deformedColor: colorDeformed.value });
+  };
+  const onWidthDeformed = () => {
+    const w = parseFloat(widthDeformed.value);
+    widthDefVal.textContent = w.toFixed(1);
+    viewer.setLineStyle({ deformedWidth: w });
+  };
+
+  replaceListener(colorUndeformed, 'input', onColorUndeformed, '_onColorUndef');
+  replaceListener(widthUndeformed, 'input', onWidthUndeformed, '_onWidthUndef');
+  replaceListener(colorDeformed,   'input', onColorDeformed,   '_onColorDef');
+  replaceListener(widthDeformed,   'input', onWidthDeformed,   '_onWidthDef');
+
   // ---------- テーマ切替 ----------
   const btnTheme = document.getElementById('btn-theme');
   const onThemeToggle = () => {
