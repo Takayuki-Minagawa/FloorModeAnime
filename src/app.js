@@ -10,6 +10,7 @@ import { FloorViewer } from './viewer.js';
 import { AnimationController } from './animation.js';
 import { setupUI, updateTimeDisplay } from './ui.js';
 import { initLang, t, applyTranslations } from './i18n.js';
+import { DOM_IDS, STORAGE_KEYS } from './constants.js';
 
 /** @type {FloorViewer|null} */
 let viewer = null;
@@ -29,29 +30,27 @@ let rafId = 0;
  * @param {Array<{code:string,message:string}>} warnings
  */
 function showMessages(errors, warnings) {
-  const container = document.getElementById('error-container');
+  const container = document.getElementById(DOM_IDS.errorContainer);
+  if (!container) return;
   container.innerHTML = '';
 
-  for (const w of warnings) {
+  const append = (cls, message) => {
     const div = document.createElement('div');
-    div.className = 'msg-warning';
-    div.textContent = w.message;
+    div.className = cls;
+    div.textContent = message;
     container.appendChild(div);
-  }
+  };
 
-  for (const e of errors) {
-    const div = document.createElement('div');
-    div.className = 'msg-error';
-    div.textContent = e.message;
-    container.appendChild(div);
-  }
+  warnings.forEach((w) => append('msg-warning', w.message));
+  errors.forEach((e) => append('msg-error', e.message));
 }
 
 /**
  * #error-container をクリアする。
  */
 function clearMessages() {
-  document.getElementById('error-container').innerHTML = '';
+  const container = document.getElementById(DOM_IDS.errorContainer);
+  if (container) container.innerHTML = '';
 }
 
 /**
@@ -87,10 +86,7 @@ function loadData(jsonText) {
   }
 
   // 既存アニメーションループを停止
-  if (rafId) {
-    cancelAnimationFrame(rafId);
-    rafId = 0;
-  }
+  stopAnimationLoop();
 
   // シーン構築
   viewer.loadFloorData(data);
@@ -111,10 +107,28 @@ function loadData(jsonText) {
   viewer.render();
 
   // アニメーションループ開始
-  prevTimestamp = 0;
-  rafId = requestAnimationFrame(animationLoop);
+  startAnimationLoop();
 
   return true;
+}
+
+/**
+ * アニメーションループを開始する（既存ループがあれば張り替える）。
+ */
+function startAnimationLoop() {
+  stopAnimationLoop();
+  prevTimestamp = 0;
+  rafId = requestAnimationFrame(animationLoop);
+}
+
+/**
+ * 実行中のアニメーションループを停止する。
+ */
+function stopAnimationLoop() {
+  if (rafId) {
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
 }
 
 /**
@@ -163,7 +177,7 @@ export async function initApp() {
   initLang();
   applyTranslations();
 
-  const canvasContainer = document.getElementById('canvas-container');
+  const canvasContainer = document.getElementById(DOM_IDS.canvasContainer);
 
   // FloorViewer 初期化
   try {
@@ -181,7 +195,7 @@ export async function initApp() {
   viewer.resize();
 
   // 保存済みテーマの復元
-  const savedTheme = localStorage.getItem('floor-mode-theme');
+  const savedTheme = localStorage.getItem(STORAGE_KEYS.theme);
   if (savedTheme === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
     viewer.setThemeColors(true);
@@ -193,19 +207,23 @@ export async function initApp() {
   });
 
   // サンプル JSON 自動読込
+  let loaded = false;
   try {
     const res = await fetch('Sample/sample_case.json');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const jsonText = await res.text();
-    loadData(jsonText);
+    loaded = loadData(jsonText);
   } catch (err) {
     console.error('Sample data load failed:', err);
     showMessages(
       [{ code: 'E_FETCH', message: t('errorFetch', { msg: err.message }) }],
       [],
     );
-    // サンプル読込失敗でも viewer は動かしておく
-    prevTimestamp = 0;
-    rafId = requestAnimationFrame(animationLoop);
+  }
+
+  // サンプル読込失敗・バリデーションエラー時でも viewer は動かしておく
+  // （loadData 成功時は内部でループ開始済み）
+  if (!loaded) {
+    startAnimationLoop();
   }
 }

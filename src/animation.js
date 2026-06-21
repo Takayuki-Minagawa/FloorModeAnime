@@ -8,7 +8,8 @@
  *   z_i'(t) = z_i + u_i(t)
  */
 
-const TWO_PI = 2 * Math.PI;
+import { TWO_PI, SCALE, SPEED } from './constants.js';
+import { computeFloorMetrics } from './geometry.js';
 
 export class AnimationController {
   /**
@@ -22,7 +23,9 @@ export class AnimationController {
     this._modes = floorData.modes;       // Map<modeNum, Map<nodeId, uz>>
 
     // L_floor と A_ref を算出
-    this._computeFloorMetrics();
+    const metrics = computeFloorMetrics(this._nodes);
+    this._lFloor = metrics.lFloor;
+    this._aRef = metrics.aRef;
 
     // Umax_m をモードごとに事前計算
     this._umaxMap = new Map(); // Map<modeNum, number>
@@ -40,8 +43,8 @@ export class AnimationController {
 
     // 状態初期化
     this._currentMode = null;
-    this._scale = 1.0;     // S: 変形倍率
-    this._speed = 1.0;     // 再生速度倍率 (0.2〜2.0)
+    this._scale = SCALE.DEFAULT;     // S: 変形倍率
+    this._speed = SPEED.DEFAULT;     // 再生速度倍率
     this._time = 0;        // t [s]
     this._playing = false;
 
@@ -52,27 +55,6 @@ export class AnimationController {
     if (this._modeList.length > 0) {
       this._currentMode = this._modeList[0];
     }
-  }
-
-  /**
-   * 節点座標から L_floor, A_ref を計算
-   */
-  _computeFloorMetrics() {
-    let minX = Infinity, maxX = -Infinity;
-    let minY = Infinity, maxY = -Infinity;
-
-    for (const node of this._nodes.values()) {
-      if (node.x < minX) minX = node.x;
-      if (node.x > maxX) maxX = node.x;
-      if (node.y < minY) minY = node.y;
-      if (node.y > maxY) maxY = node.y;
-    }
-
-    const rangeX = maxX - minX;
-    const rangeY = maxY - minY;
-    this._lFloor = Math.max(rangeX, rangeY);
-    if (this._lFloor === 0) this._lFloor = 1; // 全節点が同一座標の場合ゼロ除算を回避
-    this._aRef = this._lFloor / 10;
   }
 
   /**
@@ -102,11 +84,11 @@ export class AnimationController {
   }
 
   /**
-   * 倍率 S 設定 (0.5〜3.0 をクランプ)
+   * 倍率 S 設定 (SCALE.MIN〜SCALE.MAX をクランプ)
    * @param {number} s
    */
   setScale(s) {
-    this._scale = Math.max(0.5, Math.min(3.0, s));
+    this._scale = Math.max(SCALE.MIN, Math.min(SCALE.MAX, s));
   }
 
   /**
@@ -150,7 +132,7 @@ export class AnimationController {
     // 未記載の節点モード値は uz = 0.0 とみなす
     const uz_im = modeShape.has(nodeId) ? modeShape.get(nodeId) : 0.0;
     const umaxM = this._umaxMap.get(this._currentMode);
-    const freqM = this._freqHz.get(this._currentMode) || 0;
+    const freqM = this._freqHz.get(this._currentMode) ?? 0;
 
     // u_i(t) = S * A_ref * (uz_i,m / Umax_m) * sin(2π f_m t)
     const u_i = this._scale * this._aRef * (uz_im / umaxM) * Math.sin(TWO_PI * freqM * this._time);
@@ -159,11 +141,11 @@ export class AnimationController {
   }
 
   /**
-   * 再生速度倍率を設定 (0.2〜2.0 をクランプ)
+   * 再生速度倍率を設定 (SPEED.MIN〜SPEED.MAX をクランプ)
    * @param {number} speed
    */
   setSpeed(speed) {
-    this._speed = Math.max(0.2, Math.min(2.0, speed));
+    this._speed = Math.max(SPEED.MIN, Math.min(SPEED.MAX, speed));
   }
 
   /**
@@ -193,7 +175,7 @@ export class AnimationController {
     if (modeNum === undefined || modeNum === null) {
       modeNum = this._currentMode;
     }
-    return this._freqHz.get(modeNum) || 0;
+    return this._freqHz.get(modeNum) ?? 0;
   }
 
   /**

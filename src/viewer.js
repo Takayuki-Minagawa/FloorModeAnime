@@ -1,8 +1,8 @@
 /**
  * viewer.js — three.js シーン・描画・PNG出力
  *
- * LineSegments2 + LineMaterial で太線を描画
- * 未変形線: 0x888888 (グレー, 2px)、変形線: 0xff4444 (赤, 3px)
+ * LineSegments2 + LineMaterial で太線を描画。
+ * 色・線幅の既定値はテーマ別に constants.js の THEME / LINE_WIDTH で定義する。
  */
 
 import * as THREE from 'three';
@@ -11,6 +11,8 @@ import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { THEME, LINE_WIDTH, VIEW } from './constants.js';
+import { computeFloorMetrics, toThree, setThreePosition } from './geometry.js';
 
 export class FloorViewer {
   /**
@@ -22,7 +24,7 @@ export class FloorViewer {
     // レンダラー
     this._renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     this._renderer.setPixelRatio(window.devicePixelRatio);
-    this._renderer.setClearColor(0xffffff, 1);
+    this._renderer.setClearColor(THEME.light.clear, 1);
     this._renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
     canvasContainer.appendChild(this._renderer.domElement);
 
@@ -40,7 +42,9 @@ export class FloorViewer {
 
     // カメラ (PerspectiveCamera)
     const aspect = canvasContainer.clientWidth / canvasContainer.clientHeight || 1;
-    this._camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 10000);
+    this._camera = new THREE.PerspectiveCamera(
+      VIEW.CAMERA_FOV, aspect, VIEW.CAMERA_NEAR, VIEW.CAMERA_FAR,
+    );
     this._camera.position.set(10, 10, 10);
     this._camera.lookAt(0, 0, 0);
 
@@ -98,27 +102,11 @@ export class FloorViewer {
     this._floorData = floorData;
     const { nodes, lines } = floorData;
 
-    // L_floor 算出
-    let minX = Infinity, maxX = -Infinity;
-    let minY = Infinity, maxY = -Infinity;
-    let minZ = Infinity, maxZ = -Infinity;
-    for (const node of nodes.values()) {
-      if (node.x < minX) minX = node.x;
-      if (node.x > maxX) maxX = node.x;
-      if (node.y < minY) minY = node.y;
-      if (node.y > maxY) maxY = node.y;
-      if (node.z < minZ) minZ = node.z;
-      if (node.z > maxZ) maxZ = node.z;
-    }
-    const rangeX = maxX - minX;
-    const rangeY = maxY - minY;
-    this._lFloor = Math.max(rangeX, rangeY);
-    if (this._lFloor === 0) this._lFloor = 1; // ゼロ除算回避
+    // L_floor・中心座標を算出（geometry.js に一元化）
+    const { centerX, centerY, centerZ, lFloor } = computeFloorMetrics(nodes);
+    this._lFloor = lFloor;
 
-    // 中心座標を計算
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-    const centerZ = (minZ + maxZ) / 2;
+    const theme = this._theme();
 
     // --- 既存のシーン内容をクリア ---
     this._clearGroup(this._undeformedGroup);
@@ -128,7 +116,7 @@ export class FloorViewer {
     this._clearGroup(this._labelsGroup);
 
     // テーマに合わせてクリアカラーを設定
-    this._renderer.setClearColor(this._isDark ? 0x1a1a2e : 0xffffff, 1);
+    this._renderer.setClearColor(theme.clear, 1);
 
     // 解像度（LineMaterial に必要）
     const resolution = new THREE.Vector2(
@@ -136,32 +124,29 @@ export class FloorViewer {
       this._container.clientHeight
     );
 
-    // --- 未変形線 (グレー 0x888888, 2px) ---
-    // 座標マッピング: data(x,y,z) → three.js(y, z, x)
-    //   data.y → three.x (X軸: Node1→4方向)
-    //   data.z → three.y (鉛直方向 = three.js の上方向)
-    //   data.x → three.z (Y軸: Node1→2方向)
+    // --- 未変形線 ---
+    // 座標マッピングは geometry.toThree() に一元化（data → three.js）
     const undeformedPositions = [];
     for (const line of lines) {
       const ni = nodes.get(line.nodeI);
       const nj = nodes.get(line.nodeJ);
       if (!ni || !nj) continue;
-      undeformedPositions.push(ni.y, ni.z, ni.x);
-      undeformedPositions.push(nj.y, nj.z, nj.x);
+      undeformedPositions.push(...toThree(ni.x, ni.y, ni.z));
+      undeformedPositions.push(...toThree(nj.x, nj.y, nj.z));
     }
 
     const undeformedGeo = new LineSegmentsGeometry();
     undeformedGeo.setPositions(undeformedPositions);
     this._undeformedMaterial = new LineMaterial({
-      color: this._isDark ? 0xaaaaaa : 0x888888,
-      linewidth: 2,
+      color: theme.undeformed,
+      linewidth: LINE_WIDTH.undeformed,
       resolution: resolution,
     });
     const undeformedLines = new LineSegments2(undeformedGeo, this._undeformedMaterial);
     undeformedLines.computeLineDistances();
     this._undeformedGroup.add(undeformedLines);
 
-    // --- 変形線 (赤 0xff4444, 3px) ---
+    // --- 変形線 ---
     const deformedPositions = [];
     this._deformedVertexMap = [];
     let segmentIndex = 0;
@@ -172,8 +157,8 @@ export class FloorViewer {
       if (!ni || !nj) continue;
 
       // 初期状態は未変形と同じ座標 (座標マッピング適用)
-      deformedPositions.push(ni.y, ni.z, ni.x);
-      deformedPositions.push(nj.y, nj.z, nj.x);
+      deformedPositions.push(...toThree(ni.x, ni.y, ni.z));
+      deformedPositions.push(...toThree(nj.x, nj.y, nj.z));
 
       this._deformedVertexMap.push({
         nodeI: line.nodeI,
@@ -186,8 +171,8 @@ export class FloorViewer {
     this._deformedGeometry = new LineSegmentsGeometry();
     this._deformedGeometry.setPositions(deformedPositions);
     this._deformedMaterial = new LineMaterial({
-      color: this._isDark ? 0xff6666 : 0xff4444,
-      linewidth: 3,
+      color: theme.deformed,
+      linewidth: LINE_WIDTH.deformed,
       resolution: resolution,
     });
     const deformedLines = new LineSegments2(this._deformedGeometry, this._deformedMaterial);
@@ -198,25 +183,25 @@ export class FloorViewer {
     this._applyUserLineStyle();
 
     // --- AxesHelper ---
-    const axesSize = this._lFloor * 0.5;
-    const axes = new THREE.AxesHelper(axesSize);
+    const axes = new THREE.AxesHelper(this._lFloor * VIEW.AXES_SIZE_FACTOR);
     this._axesGroup.add(axes);
 
     // --- GridHelper ---
-    const gridSize = this._lFloor * 1.5;
-    const gridDivisions = 10;
-    const gridColor = this._isDark ? 0x444466 : 0xcccccc;
-    const grid = new THREE.GridHelper(gridSize, gridDivisions, gridColor, gridColor);
+    const gridSize = this._lFloor * VIEW.GRID_SIZE_FACTOR;
+    const grid = new THREE.GridHelper(gridSize, VIEW.GRID_DIVISIONS, theme.grid, theme.grid);
     // GridHelper は XZ 平面に作成されるため、中心をフロアに合わせる
-    grid.position.set(centerY, centerZ, centerX);
+    setThreePosition(grid, centerX, centerY, centerZ);
     this._gridGroup.add(grid);
 
     // --- カメラ位置調整 ---
     // 原点(軸)がビューポート左下に来るよう配置
     // 左寄り(大きな-X offset)・少し手前(-Z offset)のアングルで
     // 時計回り(1→4→3→2)の配置となる
-    const dist = this._lFloor * 1.5;
-    this._camera.position.set(centerY - dist * 0.85, centerZ + dist * 0.7, centerX + dist * 0.4);
+    const dist = this._lFloor * VIEW.CAMERA_DIST_FACTOR;
+    const off = VIEW.CAMERA_OFFSET;
+    this._camera.position.set(
+      centerY + dist * off.x, centerZ + dist * off.y, centerX + dist * off.z,
+    );
     this._controls.target.set(centerY, centerZ, centerX);
     this._controls.update();
 
@@ -226,9 +211,14 @@ export class FloorViewer {
       labelDiv.className = 'node-label';
       labelDiv.textContent = node.id;
       const labelObj = new CSS2DObject(labelDiv);
-      labelObj.position.set(node.y, node.z, node.x);
+      setThreePosition(labelObj, node.x, node.y, node.z);
       this._labelsGroup.add(labelObj);
     }
+  }
+
+  /** 現在のテーマ色セットを返す */
+  _theme() {
+    return this._isDark ? THEME.dark : THEME.light;
   }
 
   /**
@@ -252,9 +242,9 @@ export class FloorViewer {
       const zI = getDisplacedZ(entry.nodeI);
       const zJ = getDisplacedZ(entry.nodeJ);
 
-      // three.js 座標系: x=y, y=z(上), z=x
-      startAttr.setXYZ(entry.segmentIndex, ni.y, zI, ni.x);
-      endAttr.setXYZ(entry.segmentIndex, nj.y, zJ, nj.x);
+      // 変位後の z を使って data → three.js 座標へマッピング
+      startAttr.setXYZ(entry.segmentIndex, ...toThree(ni.x, ni.y, zI));
+      endAttr.setXYZ(entry.segmentIndex, ...toThree(nj.x, nj.y, zJ));
     }
 
     // instanceStart と instanceEnd は同じ InstancedInterleavedBuffer を共有
@@ -264,7 +254,7 @@ export class FloorViewer {
 
   /**
    * 各要素の表示ON/OFF切替
-   * @param {Object} visibility - { undeformed, deformed, axes, grid }
+   * @param {Object} visibility - { undeformed, deformed, axes, grid, labels }
    */
   setVisibility({ undeformed, deformed, axes, grid, labels }) {
     if (undeformed !== undefined) this._undeformedGroup.visible = !!undeformed;
@@ -280,7 +270,7 @@ export class FloorViewer {
    * @returns {Promise<void>}
    */
   savePNG(filename) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       // 最新の描画を保証
       this._renderer.render(this._scene, this._camera);
 
@@ -289,9 +279,15 @@ export class FloorViewer {
       link.href = dataURL;
       link.download = filename || 'floor_mode.png';
       document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      resolve();
+      try {
+        link.click();
+        resolve();
+      } catch (err) {
+        reject(err);
+      } finally {
+        // 例外時も <a> を確実に除去する
+        document.body.removeChild(link);
+      }
     });
   }
 
@@ -414,21 +410,23 @@ export class FloorViewer {
 
     if (!this._renderer) return;
 
+    const theme = this._theme();
+
     // Renderer clear color
-    this._renderer.setClearColor(isDark ? 0x1a1a2e : 0xffffff, 1);
+    this._renderer.setClearColor(theme.clear, 1);
 
     // Undeformed lines: ユーザー指定がない場合のみテーマデフォルトを適用
     if (this._undeformedMaterial && this._userLineStyle.undeformedColor === null) {
-      this._undeformedMaterial.color.setHex(isDark ? 0xaaaaaa : 0x888888);
+      this._undeformedMaterial.color.setHex(theme.undeformed);
     }
 
     // Deformed lines: ユーザー指定がない場合のみテーマデフォルトを適用
     if (this._deformedMaterial && this._userLineStyle.deformedColor === null) {
-      this._deformedMaterial.color.setHex(isDark ? 0xff6666 : 0xff4444);
+      this._deformedMaterial.color.setHex(theme.deformed);
     }
 
     // Grid: ダーク時は控えめに抑えて線を邪魔しない
-    const gridColor = isDark ? 0x444466 : 0xcccccc;
+    const gridColor = theme.grid;
     this._gridGroup.traverse((child) => {
       if (child.isLineSegments && child.material) {
         if (Array.isArray(child.material)) {
@@ -467,6 +465,11 @@ export class FloorViewer {
         } else {
           child.material.dispose();
         }
+      }
+      // CSS2DObject はオーバーレイ DOM に <div> を挿入するため、
+      // シーンから外すだけでなく DOM 要素も明示的に破棄する（再読込時のリーク防止）
+      if (child instanceof CSS2DObject && child.element) {
+        child.element.remove();
       }
     }
   }
