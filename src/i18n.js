@@ -2,7 +2,9 @@
    i18n.js -- 多言語対応モジュール (ja / en)
    ======================================================================== */
 
-const STORAGE_KEY = 'floor-mode-lang';
+import { STORAGE_KEYS } from './constants.js';
+
+const STORAGE_KEY = STORAGE_KEYS.lang;
 
 const dict = {
   ja: {
@@ -118,8 +120,9 @@ export function t(key, params) {
     return key; // キーそのものを返す
   }
   if (params) {
+    // replaceAll でリテラル置換（置換値の $ などの特殊パターン展開を回避）
     for (const [k, v] of Object.entries(params)) {
-      str = str.replace(new RegExp('\\{' + k + '\\}', 'g'), v);
+      str = str.replaceAll('{' + k + '}', String(v));
     }
   }
   return str;

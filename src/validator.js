@@ -4,11 +4,20 @@
  * @module validator
  */
 
-/** 浮動小数比較用イプシロン */
-const EPS = 1e-9;
+import { EPS } from './constants.js';
 
 /** 収集するエラーの上限 */
 const MAX_ERRORS = 100;
+
+/**
+ * `E_XXX_YYY: 説明` 形式のメッセージ項目を生成する（CLAUDE.md 規約）。
+ * @param {string} code
+ * @param {string} message
+ * @returns {{code:string, message:string}}
+ */
+function formatItem(code, message) {
+  return { code, message: `${code}: ${message}` };
+}
 
 /**
  * エラーを収集配列に追加する（上限チェック付き）。
@@ -19,7 +28,7 @@ const MAX_ERRORS = 100;
  */
 function pushError(list, code, message) {
   if (list.length >= MAX_ERRORS) return true;
-  list.push({ code, message: `${code}: ${message}` });
+  list.push(formatItem(code, message));
   return list.length >= MAX_ERRORS;
 }
 
@@ -30,7 +39,7 @@ function pushError(list, code, message) {
  * @param {string} message
  */
 function pushWarning(list, code, message) {
-  list.push({ code, message: `${code}: ${message}` });
+  list.push(formatItem(code, message));
 }
 
 /**
