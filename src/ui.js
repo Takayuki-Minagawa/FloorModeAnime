@@ -48,7 +48,7 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
 
   setupModeControls(animController, applyVisibility, refreshModeInfo);
   setupPlaybackControls(animController, applyVisibility);
-  setupTimeline(animController);
+  setupTimeline(animController, applyVisibility);
   setupViewControls(viewer);
   setupSliders(animController);
   setupVisibilityControls(applyVisibility);
@@ -124,7 +124,7 @@ function setupSliders(animController) {
 }
 
 /** タイムライン（スクラブ＋コマ送り） */
-function setupTimeline(animController) {
+function setupTimeline(animController, applyVisibility) {
   const slider = $(DOM_IDS.timeSlider);
   const btnBack = $(DOM_IDS.btnStepBack);
   const btnFwd  = $(DOM_IDS.btnStepFwd);
@@ -133,6 +133,8 @@ function setupTimeline(animController) {
     animController.stop();
     animController.setTime(parseFloat(slider.value));
     updateTimeDisplay(animController.getTime());
+    // 停止状態に戻るため、節点ラベル等の表示を再評価する
+    applyVisibility();
   };
   replaceListener(slider, 'input', onScrub, '_onScrub');
 
@@ -147,6 +149,7 @@ function setupTimeline(animController) {
     animController.setTime(nt);
     slider.value = String(nt);
     updateTimeDisplay(animController.getTime());
+    applyVisibility();
   };
   replaceListener(btnBack, 'click', () => step(-1), '_onStepBack');
   replaceListener(btnFwd, 'click', () => step(1), '_onStepFwd');

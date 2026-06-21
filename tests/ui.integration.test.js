@@ -95,6 +95,21 @@ describe('UI integration (setupUI against real index.html)', () => {
     expect(animController.getTime()).toBeCloseTo(animController.getPeriod() / 2, 6);
   });
 
+  it('再生後にスクラブすると節点ラベル表示が復帰する（applyVisibility 再評価）', () => {
+    setupUI({ viewer, animController, floorData, onFileLoad: () => {} });
+    // 再生中は labels:false で表示が更新される
+    animController.play();
+    document.getElementById('btn-play').click();
+    // スクラブで停止 → labels が再評価され true に戻る
+    viewer.setVisibility.mockClear();
+    const slider = document.getElementById('time-slider');
+    slider.value = String(animController.getPeriod() / 2);
+    slider.dispatchEvent(new window.Event('input'));
+    expect(animController.isPlaying()).toBe(false);
+    const lastCall = viewer.setVisibility.mock.calls.at(-1)[0];
+    expect(lastCall.labels).toBe(true);
+  });
+
   it('数値入力ボックスがスライダーと同期し倍率に反映される', () => {
     setupUI({ viewer, animController, floorData, onFileLoad: () => {} });
     const num = document.getElementById('scale-number');
