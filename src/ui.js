@@ -8,7 +8,8 @@
  */
 
 import { t, setLang, getLang, applyTranslations } from './i18n.js';
-import { DOM_IDS, SCALE, SPEED, STORAGE_KEYS } from './constants.js';
+import { DOM_IDS, SCALE, SPEED, STORAGE_KEYS, FRAME_STEPS, CAMERA_PRESETS } from './constants.js';
+import { assessFrequency, RISK } from './assessment.js';
 
 /** getElementById の短縮 */
 const $ = (id) => document.getElementById(id);
@@ -34,17 +35,34 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
     });
   };
 
-  setupModeControls(animController, applyVisibility);
+  // モード依存の各表示（振動数・周期・居住性・モード形テーブル・最大変位ハイライト）と
+  // タイムラインの範囲を一括更新する。
+  const refreshModeInfo = () => {
+    updateFreqDisplay(animController);
+    updatePeriodDisplay(animController);
+    updateHabitability(animController);
+    updateModeShapeTable(animController);
+    updateHighlight(viewer, animController);
+    resetTimeline(animController);
+  };
+
+  setupModeControls(animController, applyVisibility, refreshModeInfo);
   setupPlaybackControls(animController, applyVisibility);
+  setupTimeline(animController);
+  setupViewControls(viewer);
   setupSliders(animController);
   setupVisibilityControls(applyVisibility);
+  setupHighlightControl(viewer, animController);
   setupLineStyleControls(viewer);
   setupThemeControl(viewer);
-  setupLangControl(animController);
+  setupLangControl(animController, refreshModeInfo);
   setupPngControl(viewer, animController, floorData);
+  setupExportControls(animController, floorData);
   setupFileLoad(onFileLoad);
+  setupKeyboardShortcuts(animController, applyVisibility);
 
-  // 時間表示・ヘルプ内容を初期化
+  // 初期表示
+  refreshModeInfo();
   updateTimeDisplay(animController.getTime());
   const helpContent = $(DOM_IDS.helpContent);
   if (helpContent) helpContent.textContent = t('helpContent');
@@ -53,7 +71,7 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
 // ─── セクション ─────────────────────────────────────────────────────────────
 
 /** モード選択ドロップダウンと振動数表示 */
-function setupModeControls(animController, applyVisibility) {
+function setupModeControls(animController, applyVisibility, refreshModeInfo) {
   const modeSelect = $(DOM_IDS.modeSelect);
   rebuildModeOptions(modeSelect, animController);
 
@@ -63,11 +81,9 @@ function setupModeControls(animController, applyVisibility) {
     modeSelect.value = String(modeList[0]);
   }
 
-  updateFreqDisplay(animController);
-
   const onModeChange = () => {
     animController.setMode(Number(modeSelect.value));
-    updateFreqDisplay(animController);
+    refreshModeInfo();
     updateTimeDisplay(animController.getTime());
     // setMode で停止状態になるため、ラベル表示などを再評価する
     applyVisibility();
@@ -86,21 +102,135 @@ function setupPlaybackControls(animController, applyVisibility) {
   replaceListener(btnStop, 'click', onStop, '_onStop');
 }
 
-/** 速度・変形倍率スライダー */
+/** 速度・変形倍率スライダー（数値入力ボックス併用） */
 function setupSliders(animController) {
   const speedSlider = $(DOM_IDS.speedSlider);
   const speedValue  = $(DOM_IDS.speedValue);
+  const speedNumber = $(DOM_IDS.speedNumber);
   speedSlider.value = String(SPEED.DEFAULT);
   speedValue.textContent = SPEED.DEFAULT.toFixed(1);
   animController.setSpeed(SPEED.DEFAULT);
-  wireSlider(speedSlider, speedValue, (v) => animController.setSpeed(v), '_onSpeedInput');
+  wireSliderWithNumber(speedSlider, speedNumber, speedValue, SPEED,
+    (v) => animController.setSpeed(v), '_onSpeed');
 
   const scaleSlider = $(DOM_IDS.scaleSlider);
   const scaleValue  = $(DOM_IDS.scaleValue);
+  const scaleNumber = $(DOM_IDS.scaleNumber);
   scaleSlider.value = String(SCALE.DEFAULT);
   scaleValue.textContent = SCALE.DEFAULT.toFixed(1);
   animController.setScale(SCALE.DEFAULT);
-  wireSlider(scaleSlider, scaleValue, (v) => animController.setScale(v), '_onScaleInput');
+  wireSliderWithNumber(scaleSlider, scaleNumber, scaleValue, SCALE,
+    (v) => animController.setScale(v), '_onScale');
+}
+
+/** タイムライン（スクラブ＋コマ送り） */
+function setupTimeline(animController) {
+  const slider = $(DOM_IDS.timeSlider);
+  const btnBack = $(DOM_IDS.btnStepBack);
+  const btnFwd  = $(DOM_IDS.btnStepFwd);
+
+  const onScrub = () => {
+    animController.stop();
+    animController.setTime(parseFloat(slider.value));
+    updateTimeDisplay(animController.getTime());
+  };
+  replaceListener(slider, 'input', onScrub, '_onScrub');
+
+  const step = (dir) => {
+    const period = animController.getPeriod();
+    if (period <= 0) return;
+    animController.stop();
+    const delta = (period / FRAME_STEPS) * dir;
+    let nt = animController.getTime() + delta;
+    // 1周期内に正規化（負値も周期内へ）
+    nt = ((nt % period) + period) % period;
+    animController.setTime(nt);
+    slider.value = String(nt);
+    updateTimeDisplay(animController.getTime());
+  };
+  replaceListener(btnBack, 'click', () => step(-1), '_onStepBack');
+  replaceListener(btnFwd, 'click', () => step(1), '_onStepFwd');
+}
+
+/** カメラ プリセットビュー */
+function setupViewControls(viewer) {
+  const map = [
+    [DOM_IDS.btnViewIso, CAMERA_PRESETS.iso],
+    [DOM_IDS.btnViewTop, CAMERA_PRESETS.top],
+    [DOM_IDS.btnViewFront, CAMERA_PRESETS.front],
+    [DOM_IDS.btnViewSide, CAMERA_PRESETS.side],
+  ];
+  map.forEach(([id, preset], i) => {
+    replaceListener($(id), 'click', () => viewer.setView(preset), `_onView${i}`);
+  });
+}
+
+/** 最大変位ハイライト チェックボックス */
+function setupHighlightControl(viewer, animController) {
+  const chk = $(DOM_IDS.chkHighlight);
+  chk.checked = false;
+  const onChange = () => updateHighlight(viewer, animController);
+  replaceListener(chk, 'change', onChange, '_onHighlight');
+}
+
+/** 現フレーム変位データの出力（CSV / JSON） */
+function setupExportControls(animController, floorData) {
+  const onCsv = () => exportDisplacement(animController, floorData, 'csv');
+  const onJson = () => exportDisplacement(animController, floorData, 'json');
+  replaceListener($(DOM_IDS.btnExportCsv), 'click', onCsv, '_onExportCsv');
+  replaceListener($(DOM_IDS.btnExportJson), 'click', onJson, '_onExportJson');
+}
+
+/** キーボードショートカット（Space=再生/停止, ←/→=コマ送り, R=リセット） */
+function setupKeyboardShortcuts(animController, applyVisibility) {
+  const slider = $(DOM_IDS.timeSlider);
+
+  const stepFrame = (dir) => {
+    const period = animController.getPeriod();
+    if (period <= 0) return;
+    animController.stop();
+    let nt = animController.getTime() + (period / FRAME_STEPS) * dir;
+    nt = ((nt % period) + period) % period;
+    animController.setTime(nt);
+    if (slider) slider.value = String(nt);
+    updateTimeDisplay(animController.getTime());
+    applyVisibility();
+  };
+
+  const onKeydown = (e) => {
+    // 入力要素にフォーカスがある場合はショートカット無効
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+    switch (e.key) {
+      case ' ':
+        e.preventDefault();
+        if (animController.isPlaying()) animController.stop();
+        else animController.play();
+        applyVisibility();
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        stepFrame(1);
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        stepFrame(-1);
+        break;
+      case 'r':
+      case 'R':
+        animController.stop();
+        animController.setTime(0);
+        if (slider) slider.value = '0';
+        updateTimeDisplay(animController.getTime());
+        applyVisibility();
+        break;
+      default:
+        break;
+    }
+  };
+  // document に対しても多重登録を防ぐ
+  replaceListener(document, 'keydown', onKeydown, '_onFloorKeydown');
 }
 
 /** 表示切替チェックボックス */
@@ -158,7 +288,7 @@ function setupThemeControl(viewer) {
 }
 
 /** 言語切替ボタン */
-function setupLangControl(animController) {
+function setupLangControl(animController, refreshModeInfo) {
   const btnLang = $(DOM_IDS.btnLang);
   const onLangToggle = () => {
     setLang(getLang() === 'ja' ? 'en' : 'ja');
@@ -167,6 +297,7 @@ function setupLangControl(animController) {
     updateThemeButtonLabel();
     // モード選択を再構築 / 各表示を更新
     rebuildModeOptions($(DOM_IDS.modeSelect), animController);
+    refreshModeInfo();
     updateTimeDisplay(animController.getTime());
     const helpContent = $(DOM_IDS.helpContent);
     if (helpContent) helpContent.textContent = t('helpContent');
@@ -224,6 +355,36 @@ function setupFileLoad(onFileLoad) {
     fileInput.value = '';
   };
   replaceListener(fileInput, 'change', onFileChange, '_onFileChange');
+
+  // ---- ドラッグ&ドロップ読込 ----
+  const overlay = $(DOM_IDS.dropOverlay);
+  const readFile = (file) => {
+    if (!file) return;
+    fileNameDisplay.textContent = file.name;
+    fileNameDisplay._hasFile = true;
+    const reader = new FileReader();
+    reader.onload = () => { onFileLoad(reader.result); };
+    reader.onerror = () => { alert(t('alertFileError', { msg: reader.error.message })); };
+    reader.readAsText(file);
+  };
+
+  const onDragOver = (e) => {
+    e.preventDefault();
+    if (overlay) overlay.classList.add('active');
+  };
+  const onDragLeave = (e) => {
+    // ウィンドウ外/オーバーレイ離脱時のみ消す
+    if (e.relatedTarget === null && overlay) overlay.classList.remove('active');
+  };
+  const onDrop = (e) => {
+    e.preventDefault();
+    if (overlay) overlay.classList.remove('active');
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) readFile(file);
+  };
+  replaceListener(window, 'dragover', onDragOver, '_onDragOver');
+  replaceListener(window, 'dragleave', onDragLeave, '_onDragLeave');
+  replaceListener(window, 'drop', onDrop, '_onDrop');
 }
 
 // ─── 表示更新 ───────────────────────────────────────────────────────────────
@@ -240,6 +401,23 @@ export function updateTimeDisplay(time) {
 }
 
 /**
+ * 再生中の各表示（時間・タイムライン位置）を更新する。app のループから毎フレーム呼ぶ。
+ * @param {import('./animation.js').AnimationController} animController
+ */
+export function updatePlaybackDisplays(animController) {
+  const time = animController.getTime();
+  updateTimeDisplay(time);
+  // 再生中のみタイムラインを追従（ユーザーのドラッグと競合させない）
+  if (animController.isPlaying()) {
+    const slider = $(DOM_IDS.timeSlider);
+    const period = animController.getPeriod();
+    if (slider && period > 0) {
+      slider.value = String(time % period);
+    }
+  }
+}
+
+/**
  * 振動数表示を更新する。
  * @param {import('./animation.js').AnimationController} animController
  */
@@ -248,6 +426,70 @@ function updateFreqDisplay(animController) {
   if (el) {
     el.textContent = t('freqDisplay', { f: animController.getFreqHz().toFixed(2) });
   }
+}
+
+/** 周期 T 表示を更新する。 */
+function updatePeriodDisplay(animController) {
+  const el = $(DOM_IDS.periodDisplay);
+  if (!el) return;
+  const period = animController.getPeriod();
+  el.textContent = period > 0 ? t('periodDisplay', { t: period.toFixed(3) }) : '';
+}
+
+/** 居住性（歩行共振）評価表示を更新する。 */
+function updateHabitability(animController) {
+  const el = $(DOM_IDS.habitabilityDisplay);
+  if (!el) return;
+  const { risk } = assessFrequency(animController.getFreqHz());
+  if (risk === RISK.HIGH) {
+    el.textContent = t('habHigh');
+    el.dataset.risk = 'high';
+  } else if (risk === RISK.MEDIUM) {
+    el.textContent = t('habMedium');
+    el.dataset.risk = 'medium';
+  } else {
+    el.textContent = '';
+    el.dataset.risk = 'low';
+  }
+}
+
+/** 最大変位ハイライトを現在の状態（チェック有無・現モード）に同期する。 */
+function updateHighlight(viewer, animController) {
+  const chk = $(DOM_IDS.chkHighlight);
+  const on = chk && chk.checked;
+  viewer.setHighlightNode(on ? animController.getMaxNode() : null);
+}
+
+/** タイムラインの範囲を現モードの周期に合わせ、位置を 0 に戻す。 */
+function resetTimeline(animController) {
+  const slider = $(DOM_IDS.timeSlider);
+  if (!slider) return;
+  const period = animController.getPeriod();
+  if (period > 0) {
+    slider.max = String(period);
+    slider.step = String(period / 1000);
+  }
+  slider.value = '0';
+}
+
+/** 現モードのモード形（節点ごとの正規化 uz）テーブルを再構築する。 */
+function updateModeShapeTable(animController) {
+  const container = $(DOM_IDS.modeshapeTable);
+  if (!container) return;
+
+  const nodeIds = animController.getNodeIds();
+  const maxNode = animController.getMaxNode();
+
+  const rows = nodeIds.map((id) => {
+    const uz = animController.getNormalizedUz(id);
+    const mark = id === maxNode ? ' ★' : '';
+    return `<tr><td>${id}${mark}</td><td>${uz.toFixed(3)}</td></tr>`;
+  }).join('');
+
+  container.innerHTML =
+    `<table class="modeshape"><thead><tr>` +
+    `<th>${t('thNode')}</th><th>${t('thUz')}</th>` +
+    `</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 /** テーマボタンのラベルを現在のテーマに合わせて更新する。 */
@@ -291,6 +533,111 @@ function wireSlider(slider, valEl, apply, slot, digits = 1) {
     apply(v);
   };
   replaceListener(slider, 'input', handler, slot);
+}
+
+/**
+ * スライダーと数値入力ボックスを双方向同期して配線する。
+ * 両者と表示ラベルを同期し、range の [MIN, MAX] にクランプして apply(値) を呼ぶ。
+ *
+ * @param {HTMLInputElement} slider
+ * @param {HTMLInputElement} numberEl
+ * @param {HTMLElement}      valEl
+ * @param {{MIN:number, MAX:number}} range
+ * @param {(value:number)=>void} apply
+ * @param {string}           slot
+ * @param {number}           [digits=1]
+ */
+function wireSliderWithNumber(slider, numberEl, valEl, range, apply, slot, digits = 1) {
+  if (numberEl) numberEl.value = slider.value;
+
+  const commit = (raw, { syncSlider, syncNumber }) => {
+    let v = parseFloat(raw);
+    if (Number.isNaN(v)) return;
+    v = Math.max(range.MIN, Math.min(range.MAX, v));
+    if (syncSlider) slider.value = String(v);
+    if (syncNumber && numberEl) numberEl.value = String(v);
+    valEl.textContent = v.toFixed(digits);
+    apply(v);
+  };
+
+  replaceListener(slider, 'input',
+    () => commit(slider.value, { syncSlider: false, syncNumber: true }), slot + 'S');
+  if (numberEl) {
+    replaceListener(numberEl, 'input',
+      () => commit(numberEl.value, { syncSlider: true, syncNumber: false }), slot + 'N');
+  }
+}
+
+/**
+ * 現フレームの変位データを CSV / JSON でダウンロードする。
+ * 列: nodeId, x, y, z(初期), normalizedUz, displacedZ
+ *
+ * @param {import('./animation.js').AnimationController} animController
+ * @param {object} floorData
+ * @param {'csv'|'json'} format
+ */
+function exportDisplacement(animController, floorData, format) {
+  const nodes = floorData.nodes;
+  const time = animController.getTime();
+  const modeList = animController.getModeList();
+  const modeSelect = $(DOM_IDS.modeSelect);
+  const mode = modeSelect && modeSelect.value
+    ? Number(modeSelect.value)
+    : (modeList[0] ?? 0);
+
+  const records = animController.getNodeIds().map((id) => {
+    const node = nodes.get(id);
+    return {
+      id,
+      x: node ? node.x : 0,
+      y: node ? node.y : 0,
+      z: node ? node.z : 0,
+      normalizedUz: animController.getNormalizedUz(id),
+      displacedZ: animController.getDisplacedZ(id),
+    };
+  });
+
+  let content;
+  let mime;
+  let ext;
+  if (format === 'json') {
+    content = JSON.stringify({ mode, time, records }, null, 2);
+    mime = 'application/json';
+    ext = 'json';
+  } else {
+    const header = 'id,x,y,z,normalizedUz,displacedZ';
+    const lines = records.map((r) =>
+      `${r.id},${r.x},${r.y},${r.z},${r.normalizedUz},${r.displacedZ}`);
+    content = [header, ...lines].join('\n');
+    mime = 'text/csv';
+    ext = 'csv';
+  }
+
+  const base = buildExportBasename(floorData, mode, time);
+  downloadBlob(content, `${base}.${ext}`, mime);
+}
+
+/** 文字列を Blob としてダウンロードする。 */
+function downloadBlob(content, filename, mime) {
+  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  try {
+    link.click();
+  } finally {
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** 出力ファイル名のベース（拡張子なし）を組み立てる。 */
+function buildExportBasename(floorData, mode, time) {
+  const rawTitle = (floorData.meta && floorData.meta.title) || 'untitled';
+  const title = rawTitle.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  return `floormode_${title}_mode${mode}_t${time.toFixed(3)}`;
 }
 
 /**

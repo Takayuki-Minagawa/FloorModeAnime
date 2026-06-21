@@ -21,24 +21,29 @@ export class AnimationController {
     this._lines = floorData.lines;       // Array<{id, nodeI, nodeJ}>
     this._freqHz = floorData.freqHz;     // Map<modeNum, freq>
     this._modes = floorData.modes;       // Map<modeNum, Map<nodeId, uz>>
+    this._phase0 = floorData.phase0 instanceof Map ? floorData.phase0 : new Map(); // Map<modeNum, rad>
 
     // L_floor と A_ref を算出
     const metrics = computeFloorMetrics(this._nodes);
     this._lFloor = metrics.lFloor;
     this._aRef = metrics.aRef;
 
-    // Umax_m をモードごとに事前計算
-    this._umaxMap = new Map(); // Map<modeNum, number>
+    // Umax_m と最大変位節点をモードごとに事前計算
+    this._umaxMap = new Map();    // Map<modeNum, number>
+    this._maxNodeMap = new Map(); // Map<modeNum, nodeId>
     for (const [modeNum, modeShape] of this._modes) {
       let umax = 0;
-      for (const uz of modeShape.values()) {
+      let maxNodeId = null;
+      for (const [nodeId, uz] of modeShape) {
         const absUz = Math.abs(uz);
         if (absUz > umax) {
           umax = absUz;
+          maxNodeId = nodeId;
         }
       }
       // 全て0の場合は1として扱う
       this._umaxMap.set(modeNum, umax === 0 ? 1 : umax);
+      this._maxNodeMap.set(modeNum, maxNodeId);
     }
 
     // 状態初期化
@@ -133,9 +138,11 @@ export class AnimationController {
     const uz_im = modeShape.has(nodeId) ? modeShape.get(nodeId) : 0.0;
     const umaxM = this._umaxMap.get(this._currentMode);
     const freqM = this._freqHz.get(this._currentMode) ?? 0;
+    const phi0 = this._phase0.get(this._currentMode) ?? 0;
 
-    // u_i(t) = S * A_ref * (uz_i,m / Umax_m) * sin(2π f_m t)
-    const u_i = this._scale * this._aRef * (uz_im / umaxM) * Math.sin(TWO_PI * freqM * this._time);
+    // u_i(t) = S * A_ref * (uz_i,m / Umax_m) * sin(2π f_m t + φ0)
+    const u_i = this._scale * this._aRef * (uz_im / umaxM)
+      * Math.sin(TWO_PI * freqM * this._time + phi0);
 
     return z_i + u_i;
   }
@@ -187,10 +194,81 @@ export class AnimationController {
   }
 
   /**
+   * 現在時刻 t [s] を直接設定する（スクラブ・コマ送り用）。
+   * 負値は 0 にクランプ。再生状態は変更しない。
+   * @param {number} t
+   */
+  setTime(t) {
+    this._time = Math.max(0, Number(t) || 0);
+  }
+
+  /**
+   * 指定モード（省略時は現在モード）の周期 T = 1/f [s] を返す。
+   * f <= 0 の場合は 0 を返す。
+   * @param {number} [modeNum]
+   * @returns {number}
+   */
+  getPeriod(modeNum) {
+    const freq = this.getFreqHz(modeNum);
+    return freq > 0 ? 1 / freq : 0;
+  }
+
+  /**
+   * 指定モード（省略時は現在モード）の初期位相 φ0 [rad] を返す。
+   * @param {number} [modeNum]
+   * @returns {number}
+   */
+  getPhase(modeNum) {
+    if (modeNum === undefined || modeNum === null) {
+      modeNum = this._currentMode;
+    }
+    return this._phase0.get(modeNum) ?? 0;
+  }
+
+  /**
+   * 指定モード（省略時は現在モード）で |uz| が最大の節点 ID を返す。
+   * モードが無い場合は null。
+   * @param {number} [modeNum]
+   * @returns {number|null}
+   */
+  getMaxNode(modeNum) {
+    if (modeNum === undefined || modeNum === null) {
+      modeNum = this._currentMode;
+    }
+    return this._maxNodeMap.get(modeNum) ?? null;
+  }
+
+  /**
+   * 正規化モード変位 uz_i,m / Umax_m を返す（-1〜1）。
+   * 未記載の節点は 0。
+   * @param {number} nodeId
+   * @param {number} [modeNum]
+   * @returns {number}
+   */
+  getNormalizedUz(nodeId, modeNum) {
+    if (modeNum === undefined || modeNum === null) {
+      modeNum = this._currentMode;
+    }
+    const modeShape = this._modes.get(modeNum);
+    if (!modeShape) return 0;
+    const uz = modeShape.get(nodeId) ?? 0;
+    const umax = this._umaxMap.get(modeNum) ?? 1;
+    return uz / umax;
+  }
+
+  /**
    * 利用可能モード一覧
    * @returns {Array<number>}
    */
   getModeList() {
     return this._modeList.slice(); // コピーを返す
+  }
+
+  /**
+   * 節点 ID 一覧（昇順）を返す。
+   * @returns {Array<number>}
+   */
+  getNodeIds() {
+    return [...this._nodes.keys()].sort((a, b) => a - b);
   }
 }

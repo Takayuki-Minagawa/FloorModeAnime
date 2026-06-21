@@ -43,7 +43,8 @@ function convertKeysToCamelCase(value) {
  *   nodeIdCounts: Map<number,number>,
  *   lines: Array<{id:number,nodeI:number,nodeJ:number}>,
  *   freqHz: Map<number,number>,
- *   modes: Map<number,Map<number,number>>
+ *   modes: Map<number,Map<number,number>>,
+ *   phase0: Map<number,number>
  * }}
  * @throws {Error} JSON パースに失敗した場合
  */
@@ -124,5 +125,14 @@ export function parseFloorData(jsonString) {
     }
   }
 
-  return { meta, nodes, nodeIdCounts, lines, freqHz, modes };
+  // --- 8. phase0 → Map<modeNum, radians>（任意。未指定モードは 0 とみなす） ----
+  //    CLAUDE.md の式 sin(2π f t + φ0) の φ0。後方互換のため省略可能。
+  const phase0 = new Map();
+  if (data.phase0 && typeof data.phase0 === 'object') {
+    for (const [key, val] of Object.entries(data.phase0)) {
+      phase0.set(Number(key), Number(val));
+    }
+  }
+
+  return { meta, nodes, nodeIdCounts, lines, freqHz, modes, phase0 };
 }

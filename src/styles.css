@@ -431,6 +431,99 @@ input[type="range"] {
 }
 
 /* ========================================================================
+   追加機能のスタイル（タイムライン・視点・数値入力・居住性・出力 等）
+   ======================================================================== */
+
+/* スライダー + 数値入力の横並び */
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.slider-row input[type="range"] {
+  flex: 1;
+}
+.num-input {
+  width: 56px;
+  padding: 2px 4px;
+  border: 1px solid var(--border-input);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border-radius: 4px;
+}
+
+/* コマ送り・視点プリセットのボタン行 */
+.frame-row,
+.view-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.view-row button {
+  flex: 1;
+  padding: 4px 2px;
+  font-size: 0.85em;
+}
+
+/* 周期・居住性の表示 */
+#period-display {
+  color: var(--text-secondary);
+  font-size: 0.9em;
+}
+.habitability {
+  display: inline-block;
+  font-size: 0.85em;
+  font-weight: bold;
+}
+.habitability[data-risk="high"] {
+  color: var(--msg-error-text);
+}
+.habitability[data-risk="medium"] {
+  color: var(--msg-warning-text);
+}
+
+/* モード形 数値テーブル */
+#modeshape-table {
+  max-height: 180px;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+table.modeshape {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+}
+table.modeshape th,
+table.modeshape td {
+  border: 1px solid var(--border-input);
+  padding: 2px 6px;
+  text-align: right;
+}
+table.modeshape th {
+  background: var(--bg-input);
+  color: var(--text-label);
+}
+
+/* ドラッグ&ドロップ オーバーレイ */
+#drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(58, 134, 255, 0.18);
+  border: 4px dashed var(--accent);
+  color: var(--accent);
+  font-size: 1.4em;
+  font-weight: bold;
+  pointer-events: none;
+}
+#drop-overlay.active {
+  display: flex;
+}
+
+/* ========================================================================
    レスポンシブ — 画面幅が狭い場合はコントロールを下に移動
    ======================================================================== */
 @media (max-width: 720px) {

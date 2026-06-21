@@ -48,7 +48,7 @@ function pushWarning(list, code, message) {
  * @param {{ nodes: Map, nodeIdCounts?: Map, lines: Array, freqHz: Map, modes: Map }} data
  * @returns {{ errors: Array<{code:string,message:string}>, warnings: Array<{code:string,message:string}> }}
  */
-export function validateFloorData({ nodes, nodeIdCounts, lines, freqHz, modes } = {}) {
+export function validateFloorData({ nodes, nodeIdCounts, lines, freqHz, modes, phase0 } = {}) {
   const errors = [];
   const warnings = [];
   let limitReached;
@@ -295,6 +295,30 @@ export function validateFloorData({ nodes, nodeIdCounts, lines, freqHz, modes } 
           warnings,
           'W_MODE_ALL_ZERO',
           `modes[${modeNum}] all uz values are zero (|uz| <= ${EPS})`,
+        );
+      }
+    }
+  }
+
+  // =========================================================================
+  // phase0 チェック（任意フィールド。存在する場合のみ）
+  // =========================================================================
+  if (phase0 instanceof Map) {
+    for (const [modeNum, phi] of phase0) {
+      if (typeof phi !== 'number' || Number.isNaN(phi) || !Number.isFinite(phi)) {
+        limitReached = pushError(
+          errors,
+          'E_PHASE0_INVALID',
+          `phase0[${modeNum}]=${phi} is not a finite number`,
+        );
+        if (limitReached) return { errors, warnings };
+      }
+      // モード番号が modes に存在しない phase0 は警告（無視される）
+      if (modes instanceof Map && !modes.has(modeNum)) {
+        pushWarning(
+          warnings,
+          'W_PHASE0_UNKNOWN_MODE',
+          `phase0 has mode ${modeNum} but modes does not; it will be ignored`,
         );
       }
     }

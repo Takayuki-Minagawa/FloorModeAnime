@@ -11,7 +11,7 @@ import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { THEME, LINE_WIDTH, VIEW } from './constants.js';
+import { THEME, LINE_WIDTH, VIEW, CAMERA_PRESETS } from './constants.js';
 import { computeFloorMetrics, toThree, setThreePosition } from './geometry.js';
 
 export class FloorViewer {
@@ -64,17 +64,25 @@ export class FloorViewer {
     this._gridGroup.name = 'grid';
     this._labelsGroup = new THREE.Group();
     this._labelsGroup.name = 'labels';
+    this._highlightGroup = new THREE.Group();
+    this._highlightGroup.name = 'highlight';
 
     this._scene.add(this._undeformedGroup);
     this._scene.add(this._deformedGroup);
     this._scene.add(this._axesGroup);
     this._scene.add(this._gridGroup);
     this._scene.add(this._labelsGroup);
+    this._scene.add(this._highlightGroup);
 
     // 変形線のジオメトリ参照 (updateDeformed で頂点を更新するため)
     this._deformedGeometry = null;
     this._floorData = null;
     this._lFloor = 1;
+    this._center = { x: 0, y: 0, z: 0 }; // データ座標系の中心
+
+    // 最大変位節点ハイライト
+    this._highlightMesh = null;
+    this._highlightNodeId = null;
 
     // nodeId → 変形ジオメトリ内のセグメントインデックスのマッピング
     this._deformedVertexMap = [];
@@ -105,6 +113,7 @@ export class FloorViewer {
     // L_floor・中心座標を算出（geometry.js に一元化）
     const { centerX, centerY, centerZ, lFloor } = computeFloorMetrics(nodes);
     this._lFloor = lFloor;
+    this._center = { x: centerX, y: centerY, z: centerZ };
 
     const theme = this._theme();
 
@@ -114,6 +123,9 @@ export class FloorViewer {
     this._clearGroup(this._axesGroup);
     this._clearGroup(this._gridGroup);
     this._clearGroup(this._labelsGroup);
+    this._clearGroup(this._highlightGroup);
+    this._highlightMesh = null;
+    this._highlightNodeId = null;
 
     // テーマに合わせてクリアカラーを設定
     this._renderer.setClearColor(theme.clear, 1);
@@ -193,17 +205,8 @@ export class FloorViewer {
     setThreePosition(grid, centerX, centerY, centerZ);
     this._gridGroup.add(grid);
 
-    // --- カメラ位置調整 ---
-    // 原点(軸)がビューポート左下に来るよう配置
-    // 左寄り(大きな-X offset)・少し手前(-Z offset)のアングルで
-    // 時計回り(1→4→3→2)の配置となる
-    const dist = this._lFloor * VIEW.CAMERA_DIST_FACTOR;
-    const off = VIEW.CAMERA_OFFSET;
-    this._camera.position.set(
-      centerY + dist * off.x, centerZ + dist * off.y, centerX + dist * off.z,
-    );
-    this._controls.target.set(centerY, centerZ, centerX);
-    this._controls.update();
+    // --- カメラ位置調整（既定は等角ビュー） ---
+    this.setView(CAMERA_PRESETS.iso);
 
     // --- ノードIDラベル ---
     for (const node of nodes.values()) {
@@ -219,6 +222,74 @@ export class FloorViewer {
   /** 現在のテーマ色セットを返す */
   _theme() {
     return this._isDark ? THEME.dark : THEME.light;
+  }
+
+  /**
+   * カメラを指定プリセットビューに移動する。
+   * 既定(iso)は従来の等角アングルを維持。
+   * three.js 座標系: x=data.y, y=data.z(上), z=data.x。
+   *
+   * @param {string} preset - CAMERA_PRESETS のいずれか（'iso'|'top'|'front'|'side'）
+   */
+  setView(preset) {
+    if (!this._controls) return;
+
+    // データ座標の中心を three.js 座標へ
+    const [tx, ty, tz] = toThree(this._center.x, this._center.y, this._center.z);
+    const dist = this._lFloor * VIEW.CAMERA_DIST_FACTOR;
+
+    let pos;
+    switch (preset) {
+      case CAMERA_PRESETS.top: {
+        // 平面図（真上から見下ろし）。真下視の特異点回避のため僅かにずらす
+        pos = [tx, ty + dist * 1.5, tz + dist * 0.001];
+        break;
+      }
+      case CAMERA_PRESETS.front: {
+        // 正面（three.js +Z = data.x 方向から）
+        pos = [tx, ty + dist * 0.1, tz + dist * 1.4];
+        break;
+      }
+      case CAMERA_PRESETS.side: {
+        // 側面（three.js +X = data.y 方向から）
+        pos = [tx + dist * 1.4, ty + dist * 0.1, tz];
+        break;
+      }
+      case CAMERA_PRESETS.iso:
+      default: {
+        // 等角（既定）— 原点(軸)がビューポート左下に来る従来アングル
+        const off = VIEW.CAMERA_OFFSET;
+        pos = [tx + dist * off.x, ty + dist * off.y, tz + dist * off.z];
+        break;
+      }
+    }
+
+    this._camera.position.set(pos[0], pos[1], pos[2]);
+    this._controls.target.set(tx, ty, tz);
+    this._controls.update();
+  }
+
+  /**
+   * 最大変位節点（など任意の節点）をハイライトするマーカーを設定する。
+   * @param {number|null} nodeId - null でハイライト解除
+   */
+  setHighlightNode(nodeId) {
+    this._highlightNodeId = nodeId;
+
+    if (nodeId === null || nodeId === undefined) {
+      this._highlightGroup.visible = false;
+      return;
+    }
+
+    // マーカー（球）を遅延生成。サイズは床寸法に比例
+    if (!this._highlightMesh) {
+      const r = Math.max(this._lFloor * 0.02, 1e-6);
+      const geo = new THREE.SphereGeometry(r, 16, 12);
+      const mat = new THREE.MeshBasicMaterial({ color: 0x22cc66, transparent: true, opacity: 0.85 });
+      this._highlightMesh = new THREE.Mesh(geo, mat);
+      this._highlightGroup.add(this._highlightMesh);
+    }
+    this._highlightGroup.visible = true;
   }
 
   /**
@@ -250,6 +321,15 @@ export class FloorViewer {
     // instanceStart と instanceEnd は同じ InstancedInterleavedBuffer を共有
     startAttr.data.needsUpdate = true;
     this._deformedGeometry.computeBoundingSphere();
+
+    // ハイライトマーカーを変位後の節点位置へ追従
+    if (this._highlightMesh && this._highlightNodeId !== null) {
+      const hn = nodes.get(this._highlightNodeId);
+      if (hn) {
+        const zH = getDisplacedZ(this._highlightNodeId);
+        setThreePosition(this._highlightMesh, hn.x, hn.y, zH);
+      }
+    }
   }
 
   /**
@@ -323,6 +403,9 @@ export class FloorViewer {
     this._disposeGroup(this._axesGroup);
     this._disposeGroup(this._gridGroup);
     this._disposeGroup(this._labelsGroup);
+    this._disposeGroup(this._highlightGroup);
+    this._highlightMesh = null;
+    this._highlightNodeId = null;
 
     // コントロール破棄
     if (this._controls) {
