@@ -99,7 +99,7 @@ describe('UI integration (setupUI against real index.html)', () => {
     setupUI({ viewer, animController, floorData, onFileLoad: () => {} });
     const num = document.getElementById('scale-number');
     num.value = '2.5';
-    num.dispatchEvent(new window.Event('input'));
+    num.dispatchEvent(new window.Event('change'));
     const slider = document.getElementById('scale-slider');
     expect(parseFloat(slider.value)).toBeCloseTo(2.5, 6);
   });

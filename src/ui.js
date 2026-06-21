@@ -563,8 +563,10 @@ function wireSliderWithNumber(slider, numberEl, valEl, range, apply, slot, digit
   replaceListener(slider, 'input',
     () => commit(slider.value, { syncSlider: false, syncNumber: true }), slot + 'S');
   if (numberEl) {
-    replaceListener(numberEl, 'input',
-      () => commit(numberEl.value, { syncSlider: true, syncNumber: false }), slot + 'N');
+    // 数値ボックスは change（確定時）でクランプ＆反映する。
+    // input 即時クランプだと "0.7" 入力時に先頭 "0" が即クランプされ打ちづらいため。
+    replaceListener(numberEl, 'change',
+      () => commit(numberEl.value, { syncSlider: true, syncNumber: true }), slot + 'N');
   }
 }
 
@@ -635,9 +637,7 @@ function downloadBlob(content, filename, mime) {
 
 /** 出力ファイル名のベース（拡張子なし）を組み立てる。 */
 function buildExportBasename(floorData, mode, time) {
-  const rawTitle = (floorData.meta && floorData.meta.title) || 'untitled';
-  const title = rawTitle.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-  return `floormode_${title}_mode${mode}_t${time.toFixed(3)}`;
+  return `floormode_${kebabTitle(floorData)}_mode${mode}_t${time.toFixed(3)}`;
 }
 
 /**
@@ -666,14 +666,24 @@ function replaceListener(el, event, handler, slotKey) {
  * @param {import('./animation.js').AnimationController} animController
  * @returns {string}
  */
-function buildPngFilename(floorData, animController) {
-  // title: ケバブケース変換（スペース→ハイフン, 小文字）
+/**
+ * meta.title をファイル名向けのケバブケースに変換する。
+ * 英数字以外（日本語等）が除去されて空になった場合は 'untitled' を返す。
+ * @param {object} floorData
+ * @returns {string}
+ */
+function kebabTitle(floorData) {
   const rawTitle = (floorData.meta && floorData.meta.title) || 'untitled';
   const title = rawTitle
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '');
+  return title || 'untitled';
+}
+
+function buildPngFilename(floorData, animController) {
+  const title = kebabTitle(floorData);
 
   // 現在のモード番号 — getModeList の先頭をフォールバックに使う
   const modeList = animController.getModeList();
