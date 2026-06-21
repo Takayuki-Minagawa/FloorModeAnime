@@ -1,12 +1,14 @@
 {
   "name": "floor-mode-anime",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "床構面の鉛直成分モード形 3Dアニメーション表示 静的Webアプリ",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "three": "^0.170.0"
@@ -15,6 +17,8 @@
     "@eslint/js": "^10.0.1",
     "eslint": "^10.0.2",
     "globals": "^17.3.0",
-    "vite": "^6.0.0"
+    "jsdom": "^29.1.1",
+    "vite": "^6.0.0",
+    "vitest": "^4.1.9"
   }
 }

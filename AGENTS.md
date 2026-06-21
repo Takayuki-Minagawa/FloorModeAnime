@@ -12,7 +12,7 @@ GitHub Pagesでそのまま公開できる構成。
 ## ディレクトリ構成
 ```
 /
-  CLAUDE.md
+  AGENTS.md
   指示書0.md
   index.html
   package.json
@@ -26,19 +26,12 @@ GitHub Pagesでそのまま公開できる構成。
     validator.js     # 構造整合チェック・エラー収集
     ui.js            # UIコントロール・イベント管理
     i18n.js          # 多言語対応 (ja / en)
-    constants.js     # 共通定数（色・範囲・DOM ID 等）
-    geometry.js      # 座標計算（L_floor・data→three マッピング）
-    assessment.js    # 居住性（歩行共振）評価
     styles.css       # スタイル
-  /tests             # Vitest ユニット/統合テスト
   /public
     /Sample
       sample_case.json
   /docs              # ビルド出力 (GitHub Pages用)
 ```
-
-## テスト
-- `npm test` で Vitest を実行（ロジック層ユニット + UI 統合テスト）。CI でも実行。
 
 ## 座標系（右手系）
 - X軸: data.y → three.x（Node1→4方向）
@@ -60,7 +53,6 @@ L_floor = max(maxX - minX, maxY - minY)
 u_i(t) = S * A_ref * (uz_i,m / Umax_m) * sin(2π f_m t + φ0)
 z_i'(t) = z_i + u_i(t)
 ```
-- φ0: モード別初期位相 [rad]。データの任意フィールド `phase0` から取得（省略時 0）。
 - S: スライダー倍率 (0.5〜3.0, 初期値 1.0, 刻み 0.1)
 
 ## チーム構成
@@ -74,19 +66,18 @@ z_i'(t) = z_i + u_i(t)
 
 ### parser.js → 外部公開
 ```js
-export function parseFloorData(jsonString) → { meta, nodes, nodeIdCounts, lines, freqHz, modes, phase0 }
+export function parseFloorData(jsonString) → { meta, nodes, lines, freqHz, modes }
 // nodes: Map<id, {id, x, y, z}>
 // lines: Array<{id, nodeI, nodeJ}>
 // freqHz: Map<modeNum, freq>
 // modes: Map<modeNum, Map<nodeId, uz>>
-// phase0: Map<modeNum, rad>  — 任意。初期位相 φ0。省略時は空 Map（=0 とみなす）
 ```
 
 ### validator.js → 外部公開
 ```js
-export function validateFloorData({ nodes, lines, freqHz, modes, phase0 }) → { errors: [], warnings: [] }
-// errors: Array<{code, message}>  — 致命的（E_XXX_YYY 形式）
-// warnings: Array<{code, message}> — 非致命的（W_XXX_YYY 形式）
+export function validateFloorData({ nodes, lines, freqHz, modes }) → { errors: [], warnings: [] }
+// errors: Array<{code, message}>  — 致命的
+// warnings: Array<{code, message}> — 非致命的
 ```
 
 ### animation.js → 外部公開
@@ -99,16 +90,10 @@ export class AnimationController {
   setScale(s)                      // 倍率 S 設定
   setSpeed(speed)                  // 再生速度倍率 (0.2〜2.0)
   getTime() → number               // 現在 t [s]
-  setTime(t)                       // 現在 t を直接設定（スクラブ・コマ送り、負値は0）
   isPlaying() → boolean
   getDisplacedZ(nodeId) → number   // z_i'(t)
   getFreqHz(modeNum?) → number     // 振動数 [Hz]
-  getPeriod(modeNum?) → number     // 周期 T = 1/f [s]（f<=0 は 0）
-  getPhase(modeNum?) → number      // 初期位相 φ0 [rad]
-  getMaxNode(modeNum?) → number    // |uz| 最大の節点 ID
-  getNormalizedUz(nodeId, modeNum?) → number // uz/Umax (-1〜1)
   getModeList() → Array<number>    // 利用可能モード一覧
-  getNodeIds() → Array<number>     // 節点 ID 一覧（昇順）
   update(deltaTime)                // フレーム更新
 }
 ```
@@ -120,11 +105,6 @@ export class FloorViewer {
   loadFloorData(floorData)         // シーン構築
   updateDeformed(getDisplacedZ)    // 変形線更新
   setVisibility({ undeformed, deformed, axes, grid, labels })
-  setView(preset)                  // カメラ プリセット ('iso'|'top'|'front'|'side')
-  setHighlightNode(nodeId|null)    // 最大変位節点ハイライト（null で解除）
-  setThemeColors(isDark)           // テーマ色切替
-  setLineStyle({ ... })            // 線の色・太さ
-  getLineColors() → { ... }        // 現在の線色
   savePNG(filename) → Promise      // 停止中のみ
   resize()
   dispose()

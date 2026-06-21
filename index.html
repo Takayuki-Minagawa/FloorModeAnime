@@ -24,6 +24,8 @@
           <option value="" data-i18n="loadingOption">-- 読込中 --</option>
         </select>
         <span id="freq-display">f = 0.00 Hz</span>
+        <span id="period-display"></span>
+        <span id="habitability-display" class="habitability"></span>
       </div>
 
       <!-- 再生 / 停止 -->
@@ -38,16 +40,43 @@
         <span id="time-display">t = 0.000 s</span>
       </div>
 
+      <!-- タイムライン（スクラブ・コマ送り） -->
+      <div class="control-group">
+        <label for="time-slider" data-i18n="labelTimeline">タイムライン</label>
+        <input id="time-slider" type="range" min="0" max="1" step="0.001" value="0">
+        <div class="control-row frame-row">
+          <button id="btn-step-back" type="button" title="コマ戻し" data-i18n-title="titleStepBack">&#9194;</button>
+          <button id="btn-step-fwd" type="button" title="コマ送り" data-i18n-title="titleStepFwd">&#9193;</button>
+        </div>
+      </div>
+
+      <!-- 視点プリセット -->
+      <div class="control-group">
+        <label data-i18n="labelView">視点</label>
+        <div class="control-row view-row">
+          <button id="btn-view-iso" type="button" data-i18n="viewIso">等角</button>
+          <button id="btn-view-top" type="button" data-i18n="viewTop">平面</button>
+          <button id="btn-view-front" type="button" data-i18n="viewFront">正面</button>
+          <button id="btn-view-side" type="button" data-i18n="viewSide">側面</button>
+        </div>
+      </div>
+
       <!-- 速度スライダー -->
       <div class="control-group">
         <label for="speed-slider"><span data-i18n="labelSpeed">速度</span>: <span id="speed-value">1.0</span>x</label>
-        <input id="speed-slider" type="range" min="0.2" max="2.0" step="0.1" value="1.0">
+        <div class="slider-row">
+          <input id="speed-slider" type="range" min="0.2" max="2.0" step="0.1" value="1.0">
+          <input id="speed-number" type="number" min="0.2" max="2.0" step="0.1" value="1.0" class="num-input">
+        </div>
       </div>
 
       <!-- 変形倍率スライダー -->
       <div class="control-group">
         <label for="scale-slider"><span data-i18n="labelScale">倍率</span>: <span id="scale-value">1.0</span></label>
-        <input id="scale-slider" type="range" min="0.5" max="3.0" step="0.1" value="1.0">
+        <div class="slider-row">
+          <input id="scale-slider" type="range" min="0.5" max="3.0" step="0.1" value="1.0">
+          <input id="scale-number" type="number" min="0.5" max="3.0" step="0.1" value="1.0" class="num-input">
+        </div>
       </div>
 
       <!-- 表示切替チェックボックス -->
@@ -59,6 +88,7 @@
           <label><input id="chk-axes"       type="checkbox" checked> <span data-i18n="chkAxes">軸</span></label>
           <label><input id="chk-grid"       type="checkbox" checked> <span data-i18n="chkGrid">グリッド</span></label>
           <label><input id="chk-node-ids"   type="checkbox" checked> <span data-i18n="chkNodeIds">節点番号</span></label>
+          <label><input id="chk-highlight"  type="checkbox"> <span data-i18n="chkHighlight">最大変位</span></label>
         </div>
       </div>
 
@@ -85,6 +115,15 @@
         <button id="btn-download" type="button" data-i18n="btnSavePng">&#128190; PNG保存</button>
       </div>
 
+      <!-- データ出力 -->
+      <div class="control-group">
+        <label data-i18n="labelExport">データ出力</label>
+        <div class="control-row">
+          <button id="btn-export-csv" type="button" data-i18n="btnExportCsv">変位CSV</button>
+          <button id="btn-export-json" type="button" data-i18n="btnExportJson">変位JSON</button>
+        </div>
+      </div>
+
       <!-- ファイル読込 -->
       <div class="control-group">
         <label data-i18n="labelLoadJson">JSON読込</label>
@@ -96,6 +135,12 @@
         <span class="file-hint" data-i18n="fileInputHint">解析結果のJSONファイルを選択して読み込みます</span>
       </div>
 
+      <!-- モード形 数値テーブル -->
+      <details id="modeshape-section">
+        <summary data-i18n="labelModeShape">モード形 数値</summary>
+        <div id="modeshape-table"></div>
+      </details>
+
       <!-- ヘルプ -->
       <details id="help-section">
         <summary data-i18n="btnHelp">&#10067; ヘルプ</summary>
@@ -103,6 +148,9 @@
       </details>
     </div>
   </div>
+
+  <!-- ドラッグ&ドロップ オーバーレイ -->
+  <div id="drop-overlay"><span data-i18n="dropHint">JSONファイルをドロップして読み込み</span></div>
 
   <!-- エラー/警告表示 -->
   <div id="error-container"></div>

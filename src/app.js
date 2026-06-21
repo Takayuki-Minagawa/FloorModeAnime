@@ -8,7 +8,7 @@ import { parseFloorData } from './parser.js';
 import { validateFloorData } from './validator.js';
 import { FloorViewer } from './viewer.js';
 import { AnimationController } from './animation.js';
-import { setupUI, updateTimeDisplay } from './ui.js';
+import { setupUI, updatePlaybackDisplays } from './ui.js';
 import { initLang, t, applyTranslations } from './i18n.js';
 import { DOM_IDS, STORAGE_KEYS } from './constants.js';
 
@@ -164,8 +164,8 @@ function animationLoop(timestamp) {
   // 描画
   viewer.render();
 
-  // 時間表示
-  updateTimeDisplay(animController.getTime());
+  // 時間表示・タイムライン追従
+  updatePlaybackDisplays(animController);
 }
 
 /**
