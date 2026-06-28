@@ -15,7 +15,7 @@ const dict = {
     labelSpeed: '速度',
     labelScale: '倍率',
     labelVisibility: '表示切替',
-    labelLoadJson: 'JSON読込',
+    labelLoadJson: 'データ読込',
     btnSelectFile: 'ファイルを選択',
     fileNameNone: '選択なし',
     btnPlay: '▶ 再生',
@@ -30,7 +30,7 @@ const dict = {
     chkAxes: '軸',
     chkGrid: 'グリッド',
     chkNodeIds: '節点番号',
-    fileInputHint: '解析結果のJSONファイルを選択して読み込みます',
+    fileInputHint: '*_calc.yaml と *_result.json、または従来形式JSONを選択して読み込みます',
     modeOption: 'モード {n} ({f} Hz)',
     freqDisplay: 'f = {f} Hz',
     periodDisplay: 'T = {t} s',
@@ -52,7 +52,7 @@ const dict = {
     labelModeShape: 'モード形 数値',
     thNode: '節点',
     thUz: '正規化uz',
-    dropHint: 'JSONファイルをドロップして読み込み',
+    dropHint: 'calc YAML と result JSON をドロップして読み込み',
     habHigh: '⚠ 歩行共振帯',
     habMedium: '△ 倍音共振帯',
     unitLabel: '単位: {u}',
@@ -60,11 +60,12 @@ const dict = {
     alertPngFail: 'PNG保存失敗: {msg}',
     alertFileError: 'ファイル読込エラー: {msg}',
     errorJsonParse: 'E_JSON_PARSE: {msg}',
+    errorDataParse: 'E_DATA_PARSE: {msg}',
     errorWebGL: 'E_WEBGL: 3D描画の初期化に失敗しました: {msg}',
     errorFetch: 'E_FETCH: サンプルデータの読込に失敗しました: {msg}',
     helpTitle: '使い方',
     helpContent:
-      '1. サンプルデータが自動的に読み込まれます。独自のJSONファイルを「JSON読込」から読み込むこともできます。\n' +
+      '1. サンプルデータが自動的に読み込まれます。独自の calc YAML + result JSON も「データ読込」から読み込めます。\n' +
       '2. 「モード」ドロップダウンで振動モードを切り替えます。\n' +
       '3. 「再生」で振動アニメーションを開始、「停止」で一時停止します。\n' +
       '4. 「速度」スライダーでアニメーション速度を調整します（0.2x〜2.0x）。\n' +
@@ -81,7 +82,7 @@ const dict = {
     labelSpeed: 'Speed',
     labelScale: 'Scale',
     labelVisibility: 'Visibility',
-    labelLoadJson: 'Load JSON',
+    labelLoadJson: 'Load Data',
     btnSelectFile: 'Choose File',
     fileNameNone: 'No file chosen',
     btnPlay: '▶ Play',
@@ -96,7 +97,7 @@ const dict = {
     chkAxes: 'Axes',
     chkGrid: 'Grid',
     chkNodeIds: 'Node IDs',
-    fileInputHint: 'Select an analysis result JSON file to load',
+    fileInputHint: 'Select *_calc.yaml and *_result.json, or a legacy JSON file',
     modeOption: 'Mode {n} ({f} Hz)',
     freqDisplay: 'f = {f} Hz',
     periodDisplay: 'T = {t} s',
@@ -118,7 +119,7 @@ const dict = {
     labelModeShape: 'Mode Shape Values',
     thNode: 'Node',
     thUz: 'Norm. uz',
-    dropHint: 'Drop a JSON file to load',
+    dropHint: 'Drop calc YAML and result JSON to load',
     habHigh: '⚠ Walking resonance',
     habMedium: '△ Harmonic resonance',
     unitLabel: 'Unit: {u}',
@@ -126,11 +127,12 @@ const dict = {
     alertPngFail: 'PNG save failed: {msg}',
     alertFileError: 'File read error: {msg}',
     errorJsonParse: 'E_JSON_PARSE: {msg}',
+    errorDataParse: 'E_DATA_PARSE: {msg}',
     errorWebGL: 'E_WEBGL: 3D rendering init failed: {msg}',
     errorFetch: 'E_FETCH: Failed to load sample data: {msg}',
     helpTitle: 'How to Use',
     helpContent:
-      '1. Sample data loads automatically. You can also load your own JSON via "Load JSON".\n' +
+      '1. Sample data loads automatically. You can also load calc YAML + result JSON via "Load Data".\n' +
       '2. Use the "Mode" dropdown to switch between vibration modes.\n' +
       '3. Press "Play" to start animation, "Stop" to pause.\n' +
       '4. Adjust animation speed with the "Speed" slider (0.2x - 2.0x).\n' +

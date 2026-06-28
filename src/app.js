@@ -4,7 +4,7 @@
  * @module app
  */
 
-import { parseFloorData } from './parser.js';
+import { parseFloorDataSource } from './parser.js';
 import { validateFloorData } from './validator.js';
 import { FloorViewer } from './viewer.js';
 import { AnimationController } from './animation.js';
@@ -54,22 +54,22 @@ function clearMessages() {
 }
 
 /**
- * JSON 文字列からデータを読み込み、シーンを構築する。
+ * 入力データから床モード標準形を読み込み、シーンを構築する。
  * viewer が既に存在している前提。
  *
- * @param {string} jsonText  JSON 文字列
+ * @param {string|Array<{name:string,text:string}>} source  単一 JSON または calc/result ファイル群
  * @returns {boolean} 成功したら true
  */
-function loadData(jsonText) {
+function loadData(source) {
   clearMessages();
 
   // パース
   let data;
   try {
-    data = parseFloorData(jsonText);
+    data = parseFloorDataSource(source);
   } catch (err) {
     showMessages(
-      [{ code: 'E_JSON_PARSE', message: t('errorJsonParse', { msg: err.message }) }],
+      [{ code: 'E_DATA_PARSE', message: t('errorDataParse', { msg: err.message }) }],
       [],
     );
     return false;
@@ -133,10 +133,10 @@ function stopAnimationLoop() {
 
 /**
  * ファイル読込コールバック。
- * @param {string} jsonText
+ * @param {string|Array<{name:string,text:string}>} source
  */
-function handleFileLoad(jsonText) {
-  loadData(jsonText);
+function handleFileLoad(source) {
+  loadData(source);
 }
 
 /**
@@ -206,13 +206,20 @@ export async function initApp() {
     if (viewer) viewer.resize();
   });
 
-  // サンプル JSON 自動読込
+  // サンプル calc/result 自動読込
   let loaded = false;
   try {
-    const res = await fetch('Sample/sample_case.json');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const jsonText = await res.text();
-    loaded = loadData(jsonText);
+    const [modelRes, resultRes] = await Promise.all([
+      fetch('Sample/Test0202_calc.yaml'),
+      fetch('Sample/Test0202_calc_go_modal_result.json'),
+    ]);
+    if (!modelRes.ok) throw new Error(`model HTTP ${modelRes.status}`);
+    if (!resultRes.ok) throw new Error(`result HTTP ${resultRes.status}`);
+    const [modelText, resultText] = await Promise.all([modelRes.text(), resultRes.text()]);
+    loaded = loadData([
+      { name: 'Test0202_calc.yaml', text: modelText },
+      { name: 'Test0202_calc_go_modal_result.json', text: resultText },
+    ]);
   } catch (err) {
     console.error('Sample data load failed:', err);
     showMessages(

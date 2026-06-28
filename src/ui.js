@@ -342,17 +342,34 @@ function setupFileLoad(onFileLoad) {
   const onSelectFile = () => { fileInput.click(); };
   replaceListener(btnSelectFile, 'click', onSelectFile, '_onSelectFile');
 
-  const onFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    fileNameDisplay.textContent = file.name;
+  const showFileNames = (files) => {
+    const names = files.map((file) => file.name);
+    fileNameDisplay.textContent = names.length <= 2
+      ? names.join(', ')
+      : `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
     fileNameDisplay._hasFile = true;
+  };
 
+  const readTextFile = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => { onFileLoad(reader.result); };
-    reader.onerror = () => { alert(t('alertFileError', { msg: reader.error.message })); };
+    reader.onload = () => { resolve({ name: file.name, text: reader.result }); };
+    reader.onerror = () => { reject(reader.error); };
     reader.readAsText(file);
+  });
+
+  const readFiles = async (fileList) => {
+    const files = Array.from(fileList ?? []);
+    if (files.length === 0) return;
+    showFileNames(files);
+    try {
+      onFileLoad(await Promise.all(files.map(readTextFile)));
+    } catch (err) {
+      alert(t('alertFileError', { msg: err.message }));
+    }
+  };
+
+  const onFileChange = (e) => {
+    readFiles(e.target.files);
 
     // 同じファイルを再選択できるようにリセット
     fileInput.value = '';
@@ -361,15 +378,6 @@ function setupFileLoad(onFileLoad) {
 
   // ---- ドラッグ&ドロップ読込 ----
   const overlay = $(DOM_IDS.dropOverlay);
-  const readFile = (file) => {
-    if (!file) return;
-    fileNameDisplay.textContent = file.name;
-    fileNameDisplay._hasFile = true;
-    const reader = new FileReader();
-    reader.onload = () => { onFileLoad(reader.result); };
-    reader.onerror = () => { alert(t('alertFileError', { msg: reader.error.message })); };
-    reader.readAsText(file);
-  };
 
   const onDragOver = (e) => {
     e.preventDefault();
@@ -382,8 +390,8 @@ function setupFileLoad(onFileLoad) {
   const onDrop = (e) => {
     e.preventDefault();
     if (overlay) overlay.classList.remove('active');
-    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (file) readFile(file);
+    const files = e.dataTransfer && e.dataTransfer.files;
+    readFiles(files);
   };
   replaceListener(window, 'dragover', onDragOver, '_onDragOver');
   replaceListener(window, 'dragleave', onDragLeave, '_onDragLeave');

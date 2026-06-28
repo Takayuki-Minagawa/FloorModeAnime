@@ -127,12 +127,12 @@
       <!-- ファイル読込 -->
       <div class="control-group">
         <label data-i18n="labelLoadJson">JSON読込</label>
-        <input id="file-input" type="file" accept=".json" hidden>
+        <input id="file-input" type="file" accept=".json,.yaml,.yml" multiple hidden>
         <div class="file-row">
           <button id="btn-select-file" type="button" data-i18n="btnSelectFile">ファイルを選択</button>
           <span id="file-name-display">選択なし</span>
         </div>
-        <span class="file-hint" data-i18n="fileInputHint">解析結果のJSONファイルを選択して読み込みます</span>
+        <span class="file-hint" data-i18n="fileInputHint">*_calc.yaml と *_result.json、または従来形式JSONを選択して読み込みます</span>
       </div>
 
       <!-- モード形 数値テーブル -->
@@ -150,7 +150,7 @@
   </div>
 
   <!-- ドラッグ&ドロップ オーバーレイ -->
-  <div id="drop-overlay"><span data-i18n="dropHint">JSONファイルをドロップして読み込み</span></div>
+  <div id="drop-overlay"><span data-i18n="dropHint">calc YAML と result JSON をドロップして読み込み</span></div>
 
   <!-- エラー/警告表示 -->
   <div id="error-container"></div>
