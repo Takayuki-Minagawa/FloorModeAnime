@@ -17,6 +17,17 @@
         <button id="btn-lang" type="button">EN</button>
       </div>
 
+      <!-- ファイル読込 -->
+      <div class="control-group">
+        <label data-i18n="labelLoadJson">JSON読込</label>
+        <input id="file-input" type="file" accept=".json,.yaml,.yml" multiple hidden>
+        <div class="file-row">
+          <button id="btn-select-file" type="button" data-i18n="btnSelectFile">ファイルを選択</button>
+          <span id="file-name-display">選択なし</span>
+        </div>
+        <span class="file-hint" data-i18n="fileInputHint">*_calc.yaml と *_result.json、または従来形式JSONを選択して読み込みます</span>
+      </div>
+
       <!-- モード選択 -->
       <div class="control-group">
         <label for="mode-select" data-i18n="labelMode">モード</label>
@@ -122,17 +133,6 @@
           <button id="btn-export-csv" type="button" data-i18n="btnExportCsv">変位CSV</button>
           <button id="btn-export-json" type="button" data-i18n="btnExportJson">変位JSON</button>
         </div>
-      </div>
-
-      <!-- ファイル読込 -->
-      <div class="control-group">
-        <label data-i18n="labelLoadJson">JSON読込</label>
-        <input id="file-input" type="file" accept=".json,.yaml,.yml" multiple hidden>
-        <div class="file-row">
-          <button id="btn-select-file" type="button" data-i18n="btnSelectFile">ファイルを選択</button>
-          <span id="file-name-display">選択なし</span>
-        </div>
-        <span class="file-hint" data-i18n="fileInputHint">*_calc.yaml と *_result.json、または従来形式JSONを選択して読み込みます</span>
       </div>
 
       <!-- モード形 数値テーブル -->

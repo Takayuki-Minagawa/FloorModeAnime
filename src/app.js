@@ -34,15 +34,39 @@ function showMessages(errors, warnings) {
   if (!container) return;
   container.innerHTML = '';
 
+  const errorCount = errors.length;
+  const warningCount = warnings.length;
+  if (errorCount === 0 && warningCount === 0) return;
+
+  const panel = document.createElement('details');
+  panel.className = `message-panel${errorCount > 0 ? ' has-errors' : ''}`;
+  panel.open = errorCount > 0;
+
+  const summary = document.createElement('summary');
+  summary.className = 'message-summary';
+  if (errorCount > 0 && warningCount > 0) {
+    summary.textContent = t('messageSummaryBoth', { errors: errorCount, warnings: warningCount });
+  } else if (errorCount > 0) {
+    summary.textContent = t('messageSummaryErrors', { count: errorCount });
+  } else {
+    summary.textContent = t('messageSummaryWarnings', { count: warningCount });
+  }
+  panel.appendChild(summary);
+
+  const list = document.createElement('div');
+  list.className = 'message-list';
+
   const append = (cls, message) => {
     const div = document.createElement('div');
     div.className = cls;
     div.textContent = message;
-    container.appendChild(div);
+    list.appendChild(div);
   };
 
-  warnings.forEach((w) => append('msg-warning', w.message));
   errors.forEach((e) => append('msg-error', e.message));
+  warnings.forEach((w) => append('msg-warning', w.message));
+  panel.appendChild(list);
+  container.appendChild(panel);
 }
 
 /**

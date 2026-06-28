@@ -63,6 +63,9 @@ const dict = {
     errorDataParse: 'E_DATA_PARSE: {msg}',
     errorWebGL: 'E_WEBGL: 3D描画の初期化に失敗しました: {msg}',
     errorFetch: 'E_FETCH: サンプルデータの読込に失敗しました: {msg}',
+    messageSummaryWarnings: '警告 {count} 件（クリックで詳細）',
+    messageSummaryErrors: 'エラー {count} 件（詳細表示中）',
+    messageSummaryBoth: 'エラー {errors} 件 / 警告 {warnings} 件',
     helpTitle: '使い方',
     helpContent:
       '1. サンプルデータが自動的に読み込まれます。独自の calc YAML + result JSON も「データ読込」から読み込めます。\n' +
@@ -130,6 +133,9 @@ const dict = {
     errorDataParse: 'E_DATA_PARSE: {msg}',
     errorWebGL: 'E_WEBGL: 3D rendering init failed: {msg}',
     errorFetch: 'E_FETCH: Failed to load sample data: {msg}',
+    messageSummaryWarnings: '{count} warning(s) - click for details',
+    messageSummaryErrors: '{count} error(s) - details shown',
+    messageSummaryBoth: '{errors} error(s) / {warnings} warning(s)',
     helpTitle: 'How to Use',
     helpContent:
       '1. Sample data loads automatically. You can also load calc YAML + result JSON via "Load Data".\n' +
