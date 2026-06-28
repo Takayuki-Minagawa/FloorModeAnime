@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { parseFloorData } from '../src/parser.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { parseAnalysisPair, parseFloorData, parseFloorDataSource } from '../src/parser.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const root = resolve(__dirname, '..');
 
 const VALID = JSON.stringify({
   meta: { title: 'sample', length_unit: 'm' },
@@ -132,5 +138,58 @@ describe('parseFloorData', () => {
     const json = JSON.stringify({ nodes: [], lines: [], freq_hz: {}, modes: {} });
     const { meta } = parseFloorData(json);
     expect(meta).toEqual({});
+  });
+
+  it('parses analysis calc YAML + modal result JSON into the documented floor shape', () => {
+    const modelText = readFileSync(resolve(root, 'public/Sample/Test0202_calc.yaml'), 'utf-8');
+    const resultText = readFileSync(resolve(root, 'public/Sample/Test0202_calc_go_modal_result.json'), 'utf-8');
+    const result = parseAnalysisPair(modelText, resultText);
+
+    expect(result.meta.sourceFormat).toBe('analysis_model_result');
+    expect(result.meta.dofOrder).toEqual(['ux', 'uy', 'uz', 'rx', 'ry', 'rz']);
+    expect(result.nodes.size).toBe(48);
+    expect(result.lines.length).toBe(51);
+    expect(result.freqHz.get(1)).toBeCloseTo(66.21141912492982, 12);
+    expect(result.modes.size).toBe(6);
+  });
+
+  it('restores full 1-node 6-DOF mode values and reduces uz for display', () => {
+    const modelText = readFileSync(resolve(root, 'public/Sample/Test0202_calc.yaml'), 'utf-8');
+    const resultText = readFileSync(resolve(root, 'public/Sample/Test0202_calc_go_modal_result.json'), 'utf-8');
+    const result = parseAnalysisPair(modelText, resultText);
+
+    expect(result.modesFull.get(1).get(101)).toEqual({
+      ux: 0,
+      uy: 0,
+      uz: -0.018722774550003367,
+      rx: 0,
+      ry: 0.00010480546167324238,
+      rz: 0,
+    });
+    expect(result.modes.get(1).get(101)).toBe(result.modesFull.get(1).get(101).uz);
+  });
+
+  it('selects paired calc/result files from UI-style file sources', () => {
+    const modelText = readFileSync(resolve(root, 'public/Sample/Test0202_calc.yaml'), 'utf-8');
+    const resultText = readFileSync(resolve(root, 'public/Sample/Test0202_calc_go_modal_result.json'), 'utf-8');
+    const result = parseFloorDataSource([
+      { name: 'Test0202_calc.yaml', text: modelText },
+      { name: 'Test0202_calc_go_modal_result.json', text: resultText },
+    ]);
+
+    expect(result.nodes.has(3034)).toBe(true);
+    expect(result.modes.get(3).get(3034)).toBeCloseTo(-2.4164073287517485, 12);
+  });
+
+  it('does not mistake a result filename containing "_calc" for the model file', () => {
+    const modelText = readFileSync(resolve(root, 'public/Sample/Test0202_calc.yaml'), 'utf-8');
+    const resultText = readFileSync(resolve(root, 'public/Sample/Test0202_calc_go_modal_result.json'), 'utf-8');
+    const result = parseFloorDataSource([
+      { name: 'Test0202_calc_go_modal_result.json', text: resultText },
+      { name: 'Test0202_calc.yaml', text: modelText },
+    ]);
+
+    expect(result.nodes.size).toBe(48);
+    expect(result.modes.get(1).get(101)).toBeCloseTo(-0.018722774550003367, 12);
   });
 });
