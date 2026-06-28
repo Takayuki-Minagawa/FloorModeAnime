@@ -443,8 +443,9 @@ export function parseFloorDataSource(source) {
     return parseFloorData(source[0].text);
   }
 
-  const modelFile = source.find((file) => /(_calc|model|\.ya?ml$)/i.test(file.name));
   const resultFile = source.find((file) => /(_result|result|modal).*\.json$/i.test(file.name));
+  const modelFile = source.find((file) => /\.ya?ml$/i.test(file.name))
+    ?? source.find((file) => file !== resultFile && /(_calc|model).*\.json$/i.test(file.name));
   if (!modelFile || !resultFile) {
     throw new Error('E_FILE_PAIR: select both analysis model (*_calc.yaml) and result (*_result.json)');
   }
