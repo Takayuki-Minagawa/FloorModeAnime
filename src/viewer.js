@@ -76,7 +76,11 @@ export class FloorViewer {
 
     // 変形線のジオメトリ参照 (updateDeformed で頂点を更新するため)
     this._deformedGeometry = null;
+    this._contourGeometry = null;
+    this._contourMaterial = null;
+    this._contourVertexNodeIds = [];
     this._floorData = null;
+    this._dataKind = 'mode';
     this._lFloor = 1;
     this._center = { x: 0, y: 0, z: 0 }; // データ座標系の中心
 
@@ -108,6 +112,7 @@ export class FloorViewer {
    */
   loadFloorData(floorData) {
     this._floorData = floorData;
+    this._dataKind = floorData.dataKind ?? 'mode';
     const { nodes, lines } = floorData;
 
     // L_floor・中心座標を算出（geometry.js に一元化）
@@ -126,6 +131,9 @@ export class FloorViewer {
     this._clearGroup(this._highlightGroup);
     this._highlightMesh = null;
     this._highlightNodeId = null;
+    this._contourGeometry = null;
+    this._contourMaterial = null;
+    this._contourVertexNodeIds = [];
 
     // テーマに合わせてクリアカラーを設定
     this._renderer.setClearColor(theme.clear, 1);
@@ -183,13 +191,18 @@ export class FloorViewer {
     this._deformedGeometry = new LineSegmentsGeometry();
     this._deformedGeometry.setPositions(deformedPositions);
     this._deformedMaterial = new LineMaterial({
-      color: theme.deformed,
+      color: floorData.dataKind === 'response' ? theme.response : theme.deformed,
       linewidth: LINE_WIDTH.deformed,
       resolution: resolution,
     });
     const deformedLines = new LineSegments2(this._deformedGeometry, this._deformedMaterial);
     deformedLines.computeLineDistances();
     this._deformedGroup.add(deformedLines);
+
+    // --- 物理応答コンター（モード線とは別の面表示） ---
+    if (floorData.dataKind === 'response' && Array.isArray(floorData.faces)) {
+      this._createResponseContour(floorData.faces, nodes);
+    }
 
     // ユーザー指定スタイルが残っていれば再適用
     this._applyUserLineStyle();
@@ -295,8 +308,10 @@ export class FloorViewer {
   /**
    * 変形線の各頂点座標を更新
    * @param {Function} getDisplacedZ - (nodeId) => number
+   * @param {Function} [getScalarValue] - response archive raw value getter
+   * @param {{min:number,max:number}} [responseRange] - archive-wide physical range
    */
-  updateDeformed(getDisplacedZ) {
+  updateDeformed(getDisplacedZ, getScalarValue, responseRange) {
     if (!this._deformedGeometry || !this._floorData) return;
 
     const startAttr = this._deformedGeometry.getAttribute('instanceStart');
@@ -330,6 +345,81 @@ export class FloorViewer {
         setThreePosition(this._highlightMesh, hn.x, hn.y, zH);
       }
     }
+
+    this._updateResponseContour(getDisplacedZ, getScalarValue, responseRange);
+  }
+
+  /** Build a fan-triangulated, per-vertex-colored response surface. */
+  _createResponseContour(faces, nodes) {
+    const positions = [];
+    const colors = [];
+    this._contourVertexNodeIds = [];
+
+    for (const face of faces) {
+      const ids = face.nodeIds ?? [];
+      for (let index = 1; index < ids.length - 1; index++) {
+        for (const nodeId of [ids[0], ids[index], ids[index + 1]]) {
+          const node = nodes.get(nodeId);
+          if (!node) continue;
+          positions.push(...toThree(node.x, node.y, node.z));
+          colors.push(1, 1, 1);
+          this._contourVertexNodeIds.push(nodeId);
+        }
+      }
+    }
+    if (positions.length === 0) return;
+
+    this._contourGeometry = new THREE.BufferGeometry();
+    this._contourGeometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(positions, 3),
+    );
+    this._contourGeometry.setAttribute(
+      'color',
+      new THREE.Float32BufferAttribute(colors, 3),
+    );
+    this._contourMaterial = new THREE.MeshBasicMaterial({
+      vertexColors: true,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.78,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(this._contourGeometry, this._contourMaterial);
+    mesh.name = 'physical-response-contour';
+    mesh.renderOrder = -1;
+    this._deformedGroup.add(mesh);
+  }
+
+  _updateResponseContour(getDisplacedZ, getScalarValue, responseRange) {
+    if (!this._contourGeometry || typeof getScalarValue !== 'function') return;
+    const positions = this._contourGeometry.getAttribute('position');
+    const colors = this._contourGeometry.getAttribute('color');
+    const nodes = this._floorData.nodes;
+    const maxAbs = Math.max(
+      Math.abs(responseRange?.min ?? 0),
+      Math.abs(responseRange?.max ?? 0),
+      Number.EPSILON,
+    );
+
+    this._contourVertexNodeIds.forEach((nodeId, index) => {
+      const node = nodes.get(nodeId);
+      if (!node) return;
+      positions.setXYZ(index, ...toThree(node.x, node.y, getDisplacedZ(nodeId)));
+      const normalized = Math.max(-1, Math.min(1, getScalarValue(nodeId) / maxAbs));
+      const color = this._responseColor(normalized);
+      colors.setXYZ(index, color.r, color.g, color.b);
+    });
+    positions.needsUpdate = true;
+    colors.needsUpdate = true;
+    this._contourGeometry.computeBoundingSphere();
+  }
+
+  /** Blue → white → red diverging color for a value normalized to [-1,1]. */
+  _responseColor(value) {
+    const white = new THREE.Color(0xf3f5f7);
+    const endpoint = new THREE.Color(value < 0 ? 0x2554c7 : 0xd52b1e);
+    return white.lerp(endpoint, Math.abs(value));
   }
 
   /**
@@ -431,9 +521,13 @@ export class FloorViewer {
     }
 
     this._deformedGeometry = null;
+    this._contourGeometry = null;
+    this._contourMaterial = null;
+    this._contourVertexNodeIds = [];
     this._undeformedMaterial = null;
     this._deformedMaterial = null;
     this._floorData = null;
+    this._dataKind = 'mode';
   }
 
   /**
@@ -505,7 +599,9 @@ export class FloorViewer {
 
     // Deformed lines: ユーザー指定がない場合のみテーマデフォルトを適用
     if (this._deformedMaterial && this._userLineStyle.deformedColor === null) {
-      this._deformedMaterial.color.setHex(theme.deformed);
+      this._deformedMaterial.color.setHex(
+        this._dataKind === 'response' ? theme.response : theme.deformed,
+      );
     }
 
     // Grid: ダーク時は控えめに抑えて線を邪魔しない

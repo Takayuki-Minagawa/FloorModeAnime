@@ -1,73 +1,68 @@
 # Floor Mode Anime
 
-> **Ver. 1.1.0**
+> **Ver. 1.2.0**
 
-床構面の**鉛直方向モード形**をブラウザ上で 3D アニメーション表示する静的 Web アプリケーションです。
-構造解析で得られた固有振動数とモード形から、選択したモードの鉛直変位を時刻歴アニメーションで可視化できます。
+床構面の鉛直モード形と、版管理された物理応答アーカイブをブラウザで 3D 表示する静的 Web アプリです。GitHub Pages で動作し、サーバー処理は必要ありません。
 
-GitHub Pages でそのまま公開でき、サーバーサイド処理は不要です。
+> [!IMPORTANT]
+> モード形の振幅は床寸法 `L_floor / 10` を基準にした**表示用正規化座標**です。物理変位・歩行応答・規準適合判定ではありません。周波数表示も「歩行共振帯スクリーニング」であり、居住性能の正式評価ではありません。
 
-## 機能
+## 主な機能
 
-- 固有振動数とモード形に基づく鉛直変位の 3D アニメーション表示
-- モード別初期位相 φ0（`phase0`）に対応した時刻歴計算
-- 未変形線と変形線の同時表示による相対変位分布の視覚比較
-- モード切替、再生／停止、倍率調整（0.5 〜 3.0）
-- アニメーション速度調整（0.2x 〜 2.0x）
-- タイムラインスライダーによるスクラブと、コマ送り／コマ戻し
-- キーボードショートカット（Space=再生/停止、←/→=コマ送り、R=リセット）
-- カメラ視点プリセット（等角・平面・正面・側面）
-- 最大変位節点のハイライト表示
-- モード形（節点ごとの正規化 uz）の数値テーブル表示
-- 周期 T [s] 表示と、歩行共振帯／倍音共振帯の居住性評価
-- 現フレーム変位データの CSV／JSON 出力
-- 表示要素の ON／OFF 切替（未変形線・変形線・軸・グリッド・節点番号）
-- 節点番号ラベルの 3D オーバーレイ表示（アニメーション再生中は自動非表示）
-- モード切替時の振動数 [Hz] 表示
-- 太線描画による視認性の向上（未変形: 2px、変形: 3px）
-- 線の色・太さのカスタマイズ（未変形線・変形線それぞれ独立して変更可能）
-- スライダーと数値入力ボックスの併用による精密な値設定
-- ダークモード／ライトモード切替（設定はブラウザに保存）
-- 日本語／英語の多言語対応（設定はブラウザに保存）
-- マウス操作による回転・パン・ズーム（OrbitControls）
-- 停止中の画面を PNG 画像として保存
-- ローカル JSON ファイルの読込・ドラッグ&ドロップ読込・サンプルデータの自動読込
-- アプリ内ヘルプ（操作ガイド）
-
-## 動作環境
-
-- WebGL 対応のモダンブラウザ（Chrome、Firefox、Safari、Edge 等）
-- サーバー不要（静的ファイルのみで動作）
+- `floorvib-project/1` manifest による単位、座標系、節点／DOF 順、正規化、来歴、ファイル hash の照合
+- manifest で宣言された `mm` 座標の `m` への明示変換と、変換前後の集計表示
+- 現行 Test0202 golden（76 節点、79 要素、6 モード）の自動読込と CI 回帰照合
+- モード形の再生／停止、モード切替、速度・倍率調整、タイムライン、コマ送り
+- `floor-response-archive/1` の時刻歴、床面コンター、物理単位付き凡例
+- 物理応答の形状正規化 ON/OFF。OFF 時は鉛直表示量と archive 値を数値一致させる
+- 表示用正規化座標と物理応答 archive 値を分離した CSV／JSON 出力
+- 視点プリセット、OrbitControls、表示要素切替、節点番号、最大振幅節点表示
+- 日本語／英語、ライト／ダークテーマ、停止中の PNG 保存
+- 入力エラー一覧と `E_XXX_YYY`／`W_XXX_YYY` コード
 
 ## セットアップ
 
+必要環境は Node.js 20.19.0 以上と、WebGL 対応のモダンブラウザです。
+
 ```bash
-# リポジトリのクローン
 git clone https://github.com/Takayuki-Minagawa/FloorModeAnime.git
 cd FloorModeAnime
-
-# 依存パッケージのインストール
-npm install
-
-# 開発サーバーの起動
+npm ci
 npm run dev
 ```
 
-ブラウザで表示される URL（通常 `http://localhost:5173/FloorModeAnime/`）を開くと、サンプルデータが自動的に読み込まれます。
-
-## ビルド
+通常は `http://localhost:5173/FloorModeAnime/` を開きます。本番ビルドと確認は次のとおりです。
 
 ```bash
-# 本番用ビルド（出力先: dist/）
-npm run build
-
-# ビルド結果のプレビュー
+npm run build      # dist/ へ出力
 npm run preview
 ```
 
-## 入力データ形式
+## 入力データ
 
-単一の JSON ファイルで、以下の 4 つのキーが必須です。
+### 1. 解析モデル + full mode result + manifest（推奨）
+
+次の 3 ファイルを同時に選択またはドロップします。
+
+- `*_calc.yaml`: 節点、線要素、`ndf`、`dof_order`、元の単位系
+- `*_modal_result.json`: `frequencies_hz` と `mode_shapes_full`
+- `*manifest.json` または `*manifest.yaml`: `floorvib-project/1` 接続契約
+
+manifest の viewer profile は [public/schemas/floorvib-project-v1.viewer.schema.json](public/schemas/floorvib-project-v1.viewer.schema.json)、実例は [public/Sample/Test0202_manifest.json](public/Sample/Test0202_manifest.json) です。JSON Schema に加え、実行時には以下を相互照合します。
+
+- canonical/source 単位とモデル単位の整合
+- 右手系、鉛直軸 `z`
+- 節点順、`ndf`、`dof_order = ux,uy,uz,rx,ry,rz`、順序 hash
+- node/element/DOF 数、ID 重複、孤立節点
+- `frequencies_hz` と `mode_shapes_full` の存在、次元、有限値
+- normalization の種類と根拠、provenance
+- 選択した model/result の SHA-256 とバイト数
+
+manifest に矛盾があれば推定して続行せず、描画前に停止します。`mm-N-s` 系は manifest が明示した場合だけ、座標を `×10^-3` して `m` に変換します。legacy の 2 ファイル入力も後方互換で読めますが、解析プログラム間の受渡しには hash と順序を検証できる manifest 付き入力を使用してください。
+
+### 2. legacy モード JSON
+
+単一 JSON も後方互換で読み込めます。未記載の節点モード値は `uz = 0.0` です。
 
 ```json
 {
@@ -78,187 +73,159 @@ npm run preview
   },
   "nodes": [
     { "id": 1, "x": 0.0, "y": 0.0, "z": 0.0 },
-    { "id": 2, "x": 6.0, "y": 0.0, "z": 0.0 },
-    { "id": 3, "x": 6.0, "y": 4.0, "z": 0.0 },
-    { "id": 4, "x": 0.0, "y": 4.0, "z": 0.0 }
+    { "id": 2, "x": 6.0, "y": 0.0, "z": 0.0 }
   ],
   "lines": [
-    { "id": 1, "node_i": 1, "node_j": 2 },
-    { "id": 2, "node_i": 2, "node_j": 3 },
-    { "id": 3, "node_i": 3, "node_j": 4 },
-    { "id": 4, "node_i": 4, "node_j": 1 }
+    { "id": 1, "node_i": 1, "node_j": 2 }
   ],
-  "freq_hz": { "1": 5.2, "2": 8.7 },
-  "modes": {
-    "1": { "1": 0.0, "2": 0.4, "3": 1.0, "4": 0.5 },
-    "2": { "1": 1.0, "2": 0.2, "3": -0.9, "4": -0.1 }
-  },
-  "phase0": { "1": 0.0, "2": 1.5708 }
+  "freq_hz": { "1": 5.2 },
+  "modes": { "1": { "1": 0.0, "2": 1.0 } },
+  "phase0": { "1": 0.0 }
 }
 ```
 
-### 各キーの説明
+モード番号と ID は 1 始まりの正整数、振動数は正の有限値、`phase0` は rad です。
 
-| キー | 型 | 説明 |
+### 3. 物理応答 archive
+
+応答はモード入力と混在させず、別スキーマ `floor-response-archive/1` の単一 JSON として読み込みます。仕様は [public/schemas/floor-response-archive-v1.schema.json](public/schemas/floor-response-archive-v1.schema.json)、動作確認用の合成例は [public/Sample/response_case.json](public/Sample/response_case.json) です。
+
+```json
+{
+  "schema_version": "floor-response-archive/1",
+  "case_id": "sample-response",
+  "units": { "length": "m", "time": "s", "response": "m/s^2" },
+  "coordinates": { "vertical_axis": "z", "handedness": "right" },
+  "quantity": "vertical_acceleration",
+  "normalization": { "type": "physical", "reference": "solver archive" },
+  "node_order": [1, 2, 3, 4],
+  "nodes": [
+    { "id": 1, "x": 0, "y": 0, "z": 0 },
+    { "id": 2, "x": 1, "y": 0, "z": 0 },
+    { "id": 3, "x": 1, "y": 1, "z": 0 },
+    { "id": 4, "x": 0, "y": 1, "z": 0 }
+  ],
+  "faces": [{ "id": 1, "node_ids": [1, 2, 3, 4] }],
+  "time_s": [0.0, 0.1],
+  "response_values": [[0, 0, 0, 0], [0, 0.1, -0.1, 0]],
+  "provenance": { "producer": "FloorModal", "revision": "example" }
+}
+```
+
+対応量と単位は `vertical_displacement: m`、`vertical_velocity: m/s`、`vertical_acceleration: m/s^2` です。色と数値表は常に archive の物理量を示します。形状正規化 ON は分布を `L_floor / 10` で見やすくするだけです。OFF では鉛直表示量を archive 値と数値一致させますが、加速度や速度を幾何学的な変位と解釈するものではありません。
+
+## 座標系
+
+入力座標と three.js 座標の対応は次のとおりです。
+
+| 入力 | three.js | 意味 |
 |---|---|---|
-| `meta` | object | タイトル・単位等の補足情報（任意） |
-| `nodes` | array | 節点の定義。`id`（正整数）、`x`・`y`・`z`（座標）が必須 |
-| `lines` | array | 線要素の定義。`id`・`node_i`・`node_j`（接続する節点 ID）が必須 |
-| `freq_hz` | object | モード番号（文字列）をキー、固有振動数 [Hz] を値とする |
-| `modes` | object | モード番号をキー、各節点の鉛直方向モード値（`uz`）を値とする |
-| `phase0` | object | モード番号をキー、初期位相 φ0 [rad] を値とする（任意。省略時は 0） |
+| `data.y` | `three.x` | 水平 |
+| `data.z` | `three.y` | 鉛直上 |
+| `data.x` | `three.z` | 水平 |
 
-### データ仕様の補足
+右手系で、入力の `+z` を鉛直上向きとします。
 
-- モード番号・節点 ID は `1` 始まりの正整数
-- `modes` で未記載の節点は `uz = 0.0` として扱う
-- `freq_hz` は正の数値のみ有効
-- `phase0` は任意。未記載のモードは φ0 = 0 [rad] として扱う
+## モード形の表示計算
 
-### 座標系
-
-入力データの座標と 3D 表示の対応は以下の通りです。右手系で、床平面の法線方向が +Z（鉛直上向き）となります。
-
-| データ座標 | 3D 表示軸 | 方向 |
-|---|---|---|
-| `data.y` | three.x（赤: +X） | Node 1→4 方向 |
-| `data.z` | three.y（緑: +Y） | 鉛直上方向 |
-| `data.x` | three.z（青: +Z） | Node 1→2 方向 |
-
-初期カメラ視点では、原点（軸）が左下に来るように配置されます。
-
-```
-  4 ---- 3   (上)
-  |      |
-  1 ---- 2   (下・左が原点)
-```
-
-## 変形表示の計算
-
-各節点の鉛直変位は以下の式で算出されます。
-
-```
+```text
 L_floor = max(maxX - minX, maxY - minY)
 A_ref   = L_floor / 10
-
-u_i(t)  = S * A_ref * (uz_i,m / Umax_m) * sin(2 * pi * f_m * t + phi0_m)
+u_i(t)  = S * A_ref * (uz_i,m / Umax_m) * sin(2π f_m t + φ0,m)
 z_i'(t) = z_i + u_i(t)
 ```
 
-| 記号 | 説明 |
+`S` は 0.5〜3.0、初期値 1.0 です。この `u_i(t)` と `z_i'(t)` は表示用座標であり、物理応答ではありません。CSV／JSON の先頭または `description` にも `normalized display coordinates (L/10 scaled), not physical response` を記録します。
+
+## UI
+
+| コントロール | 動作 |
 |---|---|
-| `S` | 倍率スライダーの値（0.5 〜 3.0） |
-| `A_ref` | 基準最大変位（床最大寸法の 1/10） |
-| `Umax_m` | モード m の全節点での最大絶対モード値 |
-| `f_m` | モード m の固有振動数 [Hz] |
-| `phi0_m` | モード m の初期位相 φ0 [rad]（`phase0` から取得、省略時 0） |
+| Mode | モードと振動数を切替。切替時は `t = 0`、停止 |
+| 歩行共振帯スクリーニング | 歩行基本帯／倍音帯との周波数照合のみ。規準適合判定ではない |
+| Play / Stop | 再生とフレーム保持停止 |
+| Timeline / step | 時刻スクラブ、モードは 1 周期の 1/60、応答は archive サンプル単位で移動 |
+| Speed / Scale | 再生速度 0.2〜2.0、表示倍率 0.5〜3.0 |
+| Normalize display | 応答時のみ表示。OFF で archive 値と鉛直表示量を数値一致 |
+| View | 等角、平面、正面、側面 |
+| Visibility | 未変形、変形、軸、グリッド、節点番号 |
+| Export | モード表示座標または物理応答 archive 値を CSV／JSON 化 |
+| Save PNG | 停止中のみ保存 |
+| Language / Theme | JA/EN、ライト/ダーク |
 
-## UI 操作
+キーボードは `Space` が再生／停止、`←`／`→` がコマ移動、`R` が時刻リセットです。入力欄にフォーカスがある間は無効です。
 
-| コントロール | 説明 |
-|---|---|
-| 3D View | 初期表示は原点（軸）が左下に来る 3D 視点。マウスで自由に回転・パン・ズーム可能 |
-| Mode | モード番号と振動数の切替。切替時に `t = 0` でリセット |
-| Play / Stop | アニメーションの再生と停止（停止時はフレーム保持） |
-| Time | 経過時間 `t [s]` の表示（小数第 3 位まで） |
-| Timeline | スライダーで時刻をスクラブ。コマ送り／コマ戻しボタンで 1 周期を `1/60` ずつ移動 |
-| Period | 現モードの周期 `T = 1/f [s]` の表示 |
-| 居住性評価 | 振動数が歩行共振帯（1.5〜2.5 Hz）／倍音共振帯に入る場合に警告表示 |
-| Speed | 再生速度の調整（0.2x 〜 2.0x、刻み 0.1）。スライダー＋数値入力 |
-| Scale | 変形倍率の調整（0.5 〜 3.0、刻み 0.1）。スライダー＋数値入力 |
-| View | カメラ視点プリセット（等角・平面・正面・側面） |
-| Max disp. | 最大変位節点を球でハイライト表示（ON/OFF） |
-| Mode Shape Values | 現モードの節点ごとの正規化 uz を数値テーブルで表示（最大節点に ★） |
-| Visibility | 未変形線・変形線・軸・グリッド・節点番号の表示切替 |
-| Line Style | 未変形線・変形線それぞれの色（カラーピッカー）と太さ（1 〜 10px）をリアルタイムで変更。テーマ切替・データ再読込後も設定を維持 |
-| Export | 現フレームの変位データを CSV／JSON で出力 |
-| Theme | ライトモード／ダークモードの切替 |
-| Language | 日本語（JA）／英語（EN）の切替 |
-| Save PNG | 停止中のみ有効。3D 画面を PNG 画像として保存 |
-| Load JSON | ローカルの JSON ファイルを読み込んでデータを差し替え（ドラッグ&ドロップ対応） |
-| Help | アプリ内操作ガイドの表示（開閉式） |
+## Test0202 golden
 
-### キーボードショートカット
+自動読込サンプルは保存済み上流成果物のコピーです。
 
-| キー | 動作 |
-|---|---|
-| `Space` | 再生 / 停止のトグル |
-| `←` / `→` | コマ戻し / コマ送り |
-| `R` | 時刻を `t = 0` にリセット |
+- 76 節点、79 要素、6 モード
+- 固有振動数: 25.7906314891 / 39.5631722260 / 49.9022356894 / 56.1573632763 / 62.1944313106 / 70.5419127237 Hz
+- model/result の byte hash、節点・DOF 順 hash、周波数をテストで固定
+- `npm run sample:manifest` で manifest を決定的に再生成
 
-（入力欄・選択ボックスにフォーカスがある間は無効）
+上流 Beam→FEM の一気通貫生成が復旧した後は、同じ hash テストを上流の単一生成元 CI 配布物へ接続できます。
+
+## 検証
+
+```bash
+npm run lint
+npm test
+npm run build
+npm audit --audit-level=high
+npm run sample:manifest
+```
+
+CI は lint、全 Vitest、dependency audit、production build を実行します。golden と negative test には、順序入替え、単位混在、ID 重複、hash 不一致、正規化不明、非有限 full DOF、応答次元／単位違反を含みます。
 
 ## プロジェクト構成
 
+```text
+src/
+  app.js          初期化・データ種別の統合
+  parser.js       legacy、解析 pair、response archive の読込
+  manifest.js     floorvib-project/1 契約照合と明示単位変換
+  response.js     floor-response-archive/1 変換
+  integrity.js    canonical JSON と SHA-256
+  validator.js    modal/response の安全側検証
+  animation.js    モード表示と応答補間
+  viewer.js       three.js 線・床面コンター・PNG
+  export.js       意味を分離した CSV/JSON
+  ui.js           UI とイベント
+  i18n.js         ja/en
+public/
+  Sample/         golden と応答サンプル
+  schemas/        viewer 公開 JSON Schema
+scripts/
+  generate-test0202-manifest.mjs
+tests/            Vitest unit/integration/golden tests
 ```
-FloorModeAnime/
-  index.html              # HTML エントリポイント
-  package.json            # npm 設定
-  vite.config.js          # Vite 設定（base, outDir）
-  src/
-    main.js               # エントリポイント
-    app.js                # 初期化・モジュール結合
-    viewer.js             # three.js シーン・描画・PNG 出力
-    animation.js          # 変位計算・再生/停止・時刻管理
-    parser.js             # JSON 読込・型変換
-    validator.js          # データ整合チェック・エラー収集
-    ui.js                 # UI コントロール・イベント管理
-    i18n.js               # 多言語対応（ja / en）
-    constants.js          # 共通定数（色・範囲・DOM ID 等）
-    geometry.js           # 座標計算（L_floor・data→three マッピング）
-    assessment.js         # 居住性（歩行共振）評価
-    styles.css            # スタイルシート（ライト/ダーク対応）
-  tests/                  # Vitest ユニット/統合テスト
-  public/
-    favicon.svg           # ファビコン
-    Sample/
-      sample_case.json    # サンプルデータ
-  dist/                   # ビルド出力（GitHub Pages 用）
-```
-
-## テスト
-
-ロジック層のユニットテストと UI 統合テストを [Vitest](https://vitest.dev/) で実行します。
-
-```bash
-npm test          # 一度だけ実行（CI でも実行）
-npm run test:watch # ファイル変更を監視して再実行
-```
-
-## GitHub Pages へのデプロイ
-
-GitHub Actions により `main` ブランチへのプッシュ時に自動デプロイされます。
-
-1. リポジトリの **Settings > Pages** を開く
-2. **Build and deployment > Source** で **GitHub Actions** を選択
-3. `main` ブランチにプッシュすると自動的にビルド・デプロイが実行される
 
 ## 技術スタック
 
-| 技術 | バージョン | 用途 |
-|---|---|---|
-| [Vite](https://vitejs.dev/) | 6.x | ビルドツール・開発サーバー |
-| [three.js](https://threejs.org/) | 0.170.x | 3D 描画（LineSegments2 太線・CSS2DRenderer ラベル） |
-| [Vitest](https://vitest.dev/) | 4.x | ユニット／統合テスト（jsdom 環境） |
-| Vanilla JS (ESM) | - | アプリケーションロジック |
+| 技術 | 固定バージョン | 用途 |
+|---|---:|---|
+| Vite | 8.2.1 | build/dev server、Rolldown code splitting |
+| three.js | 0.185.1 | WebGL、OrbitControls、太線、CSS2D label |
+| yaml | 2.9.0 | model/manifest YAML |
+| Vitest | 4.1.10 | unit/integration tests |
+| Vanilla JS | ESM | application |
+
+three.js 本体、addons、YAML parser、アプリ本体を分割し、単一 JS bundle のサイズ警告を避けています。
+
+## GitHub Pages
+
+`main` への push で `.github/workflows/deploy.yml` が `dist/` を生成し、GitHub Pages artifact として配布します。リポジトリの **Settings > Pages > Source** は **GitHub Actions** を選択してください。
 
 ## ライセンス
 
-本プロジェクトは [MIT License](./LICENSE) のもとで公開されています。
-
-### 使用ライブラリのライセンス
-
-| ライブラリ | ライセンス |
-|---|---|
-| [three.js](https://github.com/mrdoob/three.js) | MIT |
-| [Vite](https://github.com/vitejs/vite) | MIT |
-
-全ての依存パッケージは MIT、ISC、または BSD-3-Clause ライセンスで提供されています。
+[MIT License](LICENSE)。three.js、Vite、yaml など各依存のライセンスにも従います。
 
 ## 更新履歴
 
 | バージョン | 日付 | 内容 |
 |---|---|---|
-| **Ver. 1.1.0** | 2026-06-21 | 初期位相 φ0 対応、タイムライン／コマ送り、キーボードショートカット、視点プリセット、最大変位ハイライト、モード形数値テーブル、周期・居住性評価表示、変位 CSV/JSON 出力、ドラッグ&ドロップ読込、数値入力ボックス、Vitest テスト基盤を追加 |
-| Ver. 1.0.3 | 2026-03-01 | 線の色・太さカスタマイズ機能を追加（カラーピッカー + 太さスライダー） |
-| Ver. 1.0.2 | 2026-02-01 | 初回リリース（GitHub Pages 公開、多言語対応、ダークモード対応） |
+| **1.2.0** | 2026-08-08 | 意味ラベル修正、manifest gate、Test0202 golden、物理応答コンター、公開 schema、依存更新、audit 解消、code splitting |
+| 1.1.0 | 2026-06-21 | 初期位相、タイムライン、視点、数値表、周波数帯表示、export、Vitest |
+| 1.0.3 | 2026-03-01 | 線色・太さカスタマイズ |
+| 1.0.2 | 2026-02-01 | 初回リリース |

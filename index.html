@@ -9,7 +9,19 @@
 </head>
 <body>
   <div id="app-container">
-    <div id="canvas-container"></div>
+    <div id="canvas-container">
+      <div id="display-meaning" class="display-meaning" data-i18n="displayMeaningMode">
+        表示振幅: 床寸法 L/10 に正規化した演出（物理応答ではありません）
+      </div>
+      <div id="response-legend" class="response-legend" hidden>
+        <span id="response-legend-title"></span>
+        <div class="response-gradient" aria-hidden="true"></div>
+        <div class="response-range">
+          <span id="response-legend-min"></span>
+          <span id="response-legend-max"></span>
+        </div>
+      </div>
+    </div>
 
     <div id="controls">
       <div class="control-group control-row">
@@ -25,18 +37,26 @@
           <button id="btn-select-file" type="button" data-i18n="btnSelectFile">ファイルを選択</button>
           <span id="file-name-display">選択なし</span>
         </div>
-        <span class="file-hint" data-i18n="fileInputHint">*_calc.yaml と *_result.json、または従来形式JSONを選択して読み込みます</span>
+        <span class="file-hint" data-i18n="fileInputHint">calc YAML・modal result JSON・任意のmanifest、または応答archive JSONを読み込みます</span>
       </div>
 
       <!-- モード選択 -->
-      <div class="control-group">
+      <div id="modal-controls" class="control-group">
         <label for="mode-select" data-i18n="labelMode">モード</label>
         <select id="mode-select">
           <option value="" data-i18n="loadingOption">-- 読込中 --</option>
         </select>
         <span id="freq-display">f = 0.00 Hz</span>
         <span id="period-display"></span>
+        <span class="screening-label" data-i18n="labelScreening">歩行共振帯スクリーニング</span>
         <span id="habitability-display" class="habitability"></span>
+      </div>
+
+      <!-- 物理応答 archive 情報 -->
+      <div id="response-info" class="control-group" hidden>
+        <label data-i18n="labelResponse">物理応答</label>
+        <span id="response-quantity"></span>
+        <span id="response-unit"></span>
       </div>
 
       <!-- 再生 / 停止 -->
@@ -88,6 +108,10 @@
           <input id="scale-slider" type="range" min="0.5" max="3.0" step="0.1" value="1.0">
           <input id="scale-number" type="number" min="0.5" max="3.0" step="0.1" value="1.0" class="num-input">
         </div>
+        <label id="response-normalization-row" class="inline-check" hidden>
+          <input id="chk-response-normalization" type="checkbox" checked>
+          <span data-i18n="chkResponseNormalization">表示を L/10 に正規化</span>
+        </label>
       </div>
 
       <!-- 表示切替チェックボックス -->
@@ -128,10 +152,10 @@
 
       <!-- データ出力 -->
       <div class="control-group">
-        <label data-i18n="labelExport">データ出力</label>
+        <label data-i18n="labelExport">表示用正規化座標</label>
         <div class="control-row">
-          <button id="btn-export-csv" type="button" data-i18n="btnExportCsv">変位CSV</button>
-          <button id="btn-export-json" type="button" data-i18n="btnExportJson">変位JSON</button>
+          <button id="btn-export-csv" type="button" data-i18n="btnExportCsv">表示座標CSV</button>
+          <button id="btn-export-json" type="button" data-i18n="btnExportJson">表示座標JSON</button>
         </div>
       </div>
 

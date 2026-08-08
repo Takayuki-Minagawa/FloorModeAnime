@@ -37,6 +37,7 @@ function makeViewerMock() {
 }
 
 const sample = readFileSync(resolve(root, 'public/Sample/sample_case.json'), 'utf-8');
+const responseSample = readFileSync(resolve(root, 'public/Sample/response_case.json'), 'utf-8');
 
 describe('UI integration (setupUI against real index.html)', () => {
   let viewer;
@@ -44,6 +45,8 @@ describe('UI integration (setupUI against real index.html)', () => {
   let floorData;
 
   beforeEach(() => {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.clear();
     loadIndexBody();
     floorData = parseFloorData(sample);
     animController = new AnimationController(floorData);
@@ -119,6 +122,12 @@ describe('UI integration (setupUI against real index.html)', () => {
     expect(parseFloat(slider.value)).toBeCloseTo(2.5, 6);
   });
 
+  it('保存済みテーマのDOM状態にボタン文言を同期する', () => {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    setupUI({ viewer, animController, floorData, onFileLoad: () => {} });
+    expect(document.getElementById('btn-theme').textContent).toContain('ダーク');
+  });
+
   it('Space キーで再生/停止がトグルする', () => {
     setupUI({ viewer, animController, floorData, onFileLoad: () => {} });
     expect(animController.isPlaying()).toBe(false);
@@ -135,5 +144,51 @@ describe('UI integration (setupUI against real index.html)', () => {
     updatePlaybackDisplays(animController);
     const slider = document.getElementById('time-slider');
     expect(parseFloat(slider.value)).toBeCloseTo(animController.getPeriod() / 4, 6);
+  });
+
+  it('応答archiveの終端自動停止で節点ラベルを復帰する', () => {
+    floorData = parseFloorData(responseSample);
+    animController = new AnimationController(floorData);
+    setupUI({ viewer, animController, floorData, onFileLoad: () => {} });
+    viewer.setVisibility.mockClear();
+
+    updatePlaybackDisplays(animController, viewer);
+    animController.play();
+    updatePlaybackDisplays(animController, viewer);
+    animController.update(10);
+    updatePlaybackDisplays(animController, viewer);
+
+    expect(animController.isPlaying()).toBe(false);
+    expect(viewer.setVisibility).toHaveBeenLastCalledWith({ labels: true });
+  });
+
+  it('物理応答archiveではモードUIを分離し、正規化OFFをcontrollerへ反映する', () => {
+    floorData = parseFloorData(responseSample);
+    animController = new AnimationController(floorData);
+    setupUI({ viewer, animController, floorData, onFileLoad: () => {} });
+
+    expect(document.getElementById('modal-controls').hidden).toBe(true);
+    expect(document.getElementById('response-info').hidden).toBe(false);
+    expect(document.getElementById('response-legend').hidden).toBe(false);
+    expect(document.getElementById('response-unit').textContent).toContain('m/s^2');
+
+    const checkbox = document.getElementById('chk-response-normalization');
+    checkbox.checked = false;
+    checkbox.dispatchEvent(new window.Event('change'));
+    expect(animController.isDisplayNormalized()).toBe(false);
+    expect(document.getElementById('scale-slider').disabled).toBe(true);
+    expect(document.getElementById('display-meaning').textContent).toContain('archive実値');
+  });
+
+  it('読込成功後のUI再初期化でも選択ファイル名を保持する', () => {
+    setupUI({ viewer, animController, floorData, onFileLoad: () => {} });
+    const display = document.getElementById('file-name-display');
+    display.textContent = 'response_case.json';
+    display._hasFile = true;
+
+    setupUI({ viewer, animController, floorData, onFileLoad: () => {} });
+
+    expect(display.textContent).toBe('response_case.json');
+    expect(display._hasFile).toBe(true);
   });
 });

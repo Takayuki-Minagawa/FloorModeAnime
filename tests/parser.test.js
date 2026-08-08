@@ -102,6 +102,12 @@ describe('parseFloorData', () => {
     expect(() => parseFloorData('{ not valid json')).toThrow(/JSON parse error/);
   });
 
+  it('treats special JSON keys as data without mutating object prototypes', () => {
+    const input = '{"__proto__":{"polluted":true},"nodes":[],"lines":[],"freq_hz":{},"modes":{}}';
+    parseFloorData(input);
+    expect({}.polluted).toBeUndefined();
+  });
+
   it('returns phase0 as a Map when provided', () => {
     const json = JSON.stringify({
       nodes: [{ id: 1, x: 0, y: 0, z: 0 }],
@@ -147,9 +153,9 @@ describe('parseFloorData', () => {
 
     expect(result.meta.sourceFormat).toBe('analysis_model_result');
     expect(result.meta.dofOrder).toEqual(['ux', 'uy', 'uz', 'rx', 'ry', 'rz']);
-    expect(result.nodes.size).toBe(48);
-    expect(result.lines.length).toBe(51);
-    expect(result.freqHz.get(1)).toBeCloseTo(66.21141912492982, 12);
+    expect(result.nodes.size).toBe(76);
+    expect(result.lines.length).toBe(79);
+    expect(result.freqHz.get(1)).toBeCloseTo(25.790631489066364, 12);
     expect(result.modes.size).toBe(6);
   });
 
@@ -159,12 +165,12 @@ describe('parseFloorData', () => {
     const result = parseAnalysisPair(modelText, resultText);
 
     expect(result.modesFull.get(1).get(101)).toEqual({
-      ux: 0,
-      uy: 0,
-      uz: -0.018722774550003367,
-      rx: 0,
-      ry: 0.00010480546167324238,
-      rz: 0,
+      ux: -0.00004092947669443527,
+      uy: -0.019617715042077072,
+      uz: -0.09092163185134622,
+      rx: -0.0026484215045320873,
+      ry: 0.00030584192968966195,
+      rz: -0.000052508253248257616,
     });
     expect(result.modes.get(1).get(101)).toBe(result.modesFull.get(1).get(101).uz);
   });
@@ -178,7 +184,7 @@ describe('parseFloorData', () => {
     ]);
 
     expect(result.nodes.has(3034)).toBe(true);
-    expect(result.modes.get(3).get(3034)).toBeCloseTo(-2.4164073287517485, 12);
+    expect(result.modes.get(3).get(3034)).toBeCloseTo(2.3495926756365946, 12);
   });
 
   it('does not mistake a result filename containing "_calc" for the model file', () => {
@@ -189,7 +195,23 @@ describe('parseFloorData', () => {
       { name: 'Test0202_calc.yaml', text: modelText },
     ]);
 
-    expect(result.nodes.size).toBe(48);
-    expect(result.modes.get(1).get(101)).toBeCloseTo(-0.018722774550003367, 12);
+    expect(result.nodes.size).toBe(76);
+    expect(result.modes.get(1).get(101)).toBeCloseTo(-0.09092163185134622, 12);
+  });
+
+  it('loads the bundled Test0202 manifest and applies its explicit SI conversion', () => {
+    const modelText = readFileSync(resolve(root, 'public/Sample/Test0202_calc.yaml'), 'utf-8');
+    const resultText = readFileSync(resolve(root, 'public/Sample/Test0202_calc_go_modal_result.json'), 'utf-8');
+    const manifestText = readFileSync(resolve(root, 'public/Sample/Test0202_manifest.json'), 'utf-8');
+    const result = parseFloorDataSource([
+      { name: 'Test0202_calc.yaml', text: modelText },
+      { name: 'Test0202_calc_go_modal_result.json', text: resultText },
+      { name: 'Test0202_manifest.json', text: manifestText },
+    ]);
+
+    expect(result.contract.schemaVersion).toBe('floorvib-project/1');
+    expect(result.contract.errors).toEqual([]);
+    expect(result.meta.lengthUnit).toBe('m');
+    expect(result.nodes.get(1).z).toBeCloseTo(2.8, 12);
   });
 });

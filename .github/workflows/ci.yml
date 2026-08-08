@@ -20,10 +20,16 @@ jobs:
       - run: npm ci
 
       - name: Lint
-        run: npx eslint src/
+        run: npm run lint
 
       - name: Test
         run: npm test
+
+      - name: Verify generated Test0202 manifest
+        run: npm run sample:manifest && git diff --exit-code -- public/Sample/Test0202_manifest.json
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high
 
       - name: Build
         run: npm run build
