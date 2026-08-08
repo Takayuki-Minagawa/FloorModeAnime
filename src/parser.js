@@ -4,7 +4,11 @@
  * @module parser
  */
 
-import { attachProjectManifest, parseProjectManifest } from './manifest.js';
+import {
+  attachProjectManifest,
+  normalizeProjectManifest,
+  parseProjectManifest,
+} from './manifest.js';
 import { isResponseArchive, parseResponseArchive } from './response.js';
 import { parse as parseYaml } from 'yaml';
 
@@ -107,20 +111,23 @@ function extractAnalysisPair(data) {
  * @returns {number}
  */
 function nodeIdOf(node) {
-  return Number(node.id ?? node.tag ?? node.nodeTag);
+  const value = node?.id ?? node?.tag ?? node?.nodeTag;
+  return typeof value === 'number' ? value : Number.NaN;
 }
 
 /**
  * 解析モデルの node_i / node_j を既存 line 形式へ変換する。
  * @param {object} element
  * @param {number} fallbackId
- * @returns {{id:number,nodeI:number,nodeJ:number}|null}
+ * @returns {{id:number,nodeI:number,nodeJ:number}}
  */
 function lineFromElement(element, fallbackId) {
-  const nodeI = Number(element.nodeI ?? element.iNode ?? element.nodeTagI);
-  const nodeJ = Number(element.nodeJ ?? element.jNode ?? element.nodeTagJ);
-  if (!Number.isFinite(nodeI) || !Number.isFinite(nodeJ)) return null;
-  const id = Number(element.id ?? element.tag ?? fallbackId);
+  const nodeIRaw = element?.nodeI ?? element?.iNode ?? element?.nodeTagI;
+  const nodeJRaw = element?.nodeJ ?? element?.jNode ?? element?.nodeTagJ;
+  const idRaw = element?.id ?? element?.tag ?? element?.nodeTag ?? fallbackId;
+  const nodeI = typeof nodeIRaw === 'number' ? nodeIRaw : Number.NaN;
+  const nodeJ = typeof nodeJRaw === 'number' ? nodeJRaw : Number.NaN;
+  const id = typeof idRaw === 'number' ? idRaw : Number.NaN;
   return { id, nodeI, nodeJ };
 }
 
@@ -141,20 +148,20 @@ function createFullModeReader(matrix, dofRowCount, modeCount, ndf) {
   }
 
   const rowMajorDof = matrix.length === dofRowCount
-    && matrix.every((row) => Array.isArray(row) && row.length >= modeCount);
+    && matrix.every((row) => Array.isArray(row) && row.length === modeCount);
   if (rowMajorDof) {
     return (nodeIndex, dofIndex, modeIndex) => {
       const row = nodeIndex * ndf + dofIndex;
-      return Number(matrix[row]?.[modeIndex] ?? 0);
+      return matrix[row]?.[modeIndex];
     };
   }
 
-  const rowMajorMode = matrix.length >= modeCount
-    && matrix.slice(0, modeCount).every((row) => Array.isArray(row) && row.length >= dofRowCount);
+  const rowMajorMode = matrix.length === modeCount
+    && matrix.every((row) => Array.isArray(row) && row.length === dofRowCount);
   if (rowMajorMode) {
     return (nodeIndex, dofIndex, modeIndex) => {
       const col = nodeIndex * ndf + dofIndex;
-      return Number(matrix[modeIndex]?.[col] ?? 0);
+      return matrix[modeIndex]?.[col];
     };
   }
 
@@ -191,7 +198,9 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult, op
 
   const parsedNdf = Number(model.ndf ?? 6);
   const ndf = Number.isFinite(parsedNdf) && parsedNdf > 0 ? parsedNdf : 6;
-  const dofOrder = (model.traceability?.dofOrder ?? ['ux', 'uy', 'uz', 'rx', 'ry', 'rz'])
+  const rawDofOrder = model.traceability?.dofOrder;
+  const declaredDofOrder = Array.isArray(rawDofOrder) ? rawDofOrder : null;
+  const dofOrder = (declaredDofOrder ?? ['ux', 'uy', 'uz', 'rx', 'ry', 'rz'])
     .map((dof) => String(dof));
   const uzIndex = dofOrder.findIndex((dof) => dof.toLowerCase() === 'uz');
   const verticalDofIndex = uzIndex >= 0 ? uzIndex : 2;
@@ -201,9 +210,9 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult, op
   const orderedNodeIds = [];
   for (const n of model.nodes ?? []) {
     const id = nodeIdOf(n);
-    const x = Number(n.x ?? 0);
-    const y = Number(n.y ?? 0);
-    const z = Number(n.z ?? 0);
+    const x = typeof n?.x === 'number' ? n.x : Number.NaN;
+    const y = typeof n?.y === 'number' ? n.y : Number.NaN;
+    const z = typeof n?.z === 'number' ? n.z : Number.NaN;
     orderedNodeIds.push(id);
     nodeIdCounts.set(id, (nodeIdCounts.get(id) ?? 0) + 1);
     nodes.set(id, { id, x, y, z });
@@ -212,7 +221,7 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult, op
   const lines = [];
   let fallbackLineId = 1;
   for (const element of model.elements ?? []) {
-    const line = lineFromElement(element, fallbackLineId);
+    const line = lineFromElement(element, options.manifest ? undefined : fallbackLineId);
     fallbackLineId++;
     if (line) lines.push(line);
   }
@@ -221,7 +230,8 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult, op
   const modeShapesFull = result.modeShapesFull;
   const matrixModeCount = Array.isArray(modeShapesFull?.[0]) ? modeShapesFull[0].length : 0;
   const freqCount = Array.isArray(frequencies) ? frequencies.length : Object.keys(frequencies ?? {}).length;
-  const parsedModeCount = Number(resultRoot.numModes ?? result.numModes);
+  const rawModeCount = resultRoot.numModes ?? result.numModes;
+  const parsedModeCount = Number(rawModeCount);
   const modeCount = Number.isInteger(parsedModeCount) && parsedModeCount > 0
     ? parsedModeCount
     : (freqCount > 0 ? freqCount : matrixModeCount);
@@ -230,10 +240,20 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult, op
   for (let i = 0; i < modeCount; i++) {
     const modeNum = i + 1;
     const freq = Array.isArray(frequencies) ? frequencies[i] : frequencies[String(modeNum)];
-    freqHz.set(modeNum, Number(freq));
+    freqHz.set(modeNum, typeof freq === 'number' ? freq : Number.NaN);
   }
 
-  const readFullMode = createFullModeReader(modeShapesFull, orderedNodeIds.length * ndf, modeCount, ndf);
+  const dofRowCount = orderedNodeIds.length * ndf;
+  let readFullMode;
+  try {
+    readFullMode = createFullModeReader(modeShapesFull, dofRowCount, modeCount, ndf);
+  } catch (error) {
+    // A manifest-backed load reports all contract violations together in the
+    // UI. Invalid matrix shapes therefore produce NaN placeholders here and
+    // are rejected by attachProjectManifest/validateFloorData below.
+    if (!options.manifest) throw error;
+    readFullMode = () => Number.NaN;
+  }
   const modes = new Map();
   const modesFull = new Map();
 
@@ -249,7 +269,7 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult, op
         dofValues[dof] = readFullMode(nodeIndex, dofIndex, modeIndex);
       }
       fullNodeMap.set(nodeId, dofValues);
-      uzMap.set(nodeId, dofValues[dofOrder[verticalDofIndex] ?? 'uz'] ?? 0);
+      uzMap.set(nodeId, dofValues[dofOrder[verticalDofIndex] ?? 'uz']);
     });
 
     modes.set(modeNum, uzMap);
@@ -284,9 +304,16 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult, op
         nodeOrder: orderedNodeIds,
         ndf,
         dofOrder,
+        hasNdf: Number.isInteger(model.ndf) && model.ndf > 0,
+        hasDofOrder: Array.isArray(rawDofOrder)
+          && rawDofOrder.length > 0
+          && rawDofOrder.every((dof) => typeof dof === 'string'),
         lengthUnit: modelRoot.units?.length ?? model.units?.length,
       },
       resultInfo: {
+        declaredModeCount: rawModeCount,
+        hasDeclaredModeCount: Number.isInteger(rawModeCount) && rawModeCount > 0,
+        dofRowCount,
         hasFrequencies: Object.hasOwn(result, 'frequenciesHz') || Object.hasOwn(result, 'freqHz'),
         frequencies,
         hasFullModes: Object.hasOwn(result, 'modeShapesFull'),
@@ -335,6 +362,67 @@ function isProjectManifestFile(file) {
   }
 }
 
+const fileBasename = (path) => String(path ?? '').replaceAll('\\', '/').split('/').at(-1);
+
+function selectManifestDataFiles(dataFiles, manifestText) {
+  const contract = normalizeProjectManifest(parseProjectManifest(manifestText));
+  const expectedModelName = fileBasename(contract.modelArtifact?.path);
+  const expectedResultName = fileBasename(contract.resultArtifact?.path);
+  if (!expectedModelName || !expectedResultName) {
+    throw new Error(
+      'E_MANIFEST_ARTIFACT_MISSING: manifest must identify both model and modal result files',
+    );
+  }
+
+  const selectUnique = (name, role) => {
+    const matches = dataFiles.filter((file) => file.name === name);
+    if (matches.length === 0) {
+      throw new Error(`E_MANIFEST_ARTIFACT_MISSING: ${role} file ${name} was not selected`);
+    }
+    if (matches.length > 1) {
+      throw new Error(`E_FILE_AMBIGUOUS: ${role} file ${name} was selected more than once`);
+    }
+    return matches[0];
+  };
+
+  const modelFile = selectUnique(expectedModelName, 'analysis model');
+  const resultFile = selectUnique(expectedResultName, 'modal result');
+  if (modelFile === resultFile) {
+    throw new Error('E_FILE_AMBIGUOUS: model and modal result must be separate files');
+  }
+  const extras = dataFiles.filter((file) => file !== modelFile && file !== resultFile);
+  if (extras.length > 0) {
+    throw new Error(
+      `E_FILE_AMBIGUOUS: manifest input contains unreferenced file(s): ${extras.map((file) => file.name).join(', ')}`,
+    );
+  }
+  return { modelFile, resultFile };
+}
+
+function selectLegacyAnalysisFiles(dataFiles) {
+  const resultFiles = dataFiles.filter((file) => /(_result|result|modal).*\.json$/i.test(file.name));
+  const yamlModelFiles = dataFiles.filter((file) => /\.ya?ml$/i.test(file.name));
+  const jsonModelFiles = dataFiles.filter((file) => !resultFiles.includes(file)
+    && /(_calc|model).*\.json$/i.test(file.name));
+  const modelFiles = yamlModelFiles.length > 0 ? yamlModelFiles : jsonModelFiles;
+
+  if (resultFiles.length > 1 || modelFiles.length > 1) {
+    throw new Error('E_FILE_AMBIGUOUS: select exactly one analysis model and one modal result');
+  }
+  const modelFile = modelFiles[0];
+  const resultFile = resultFiles[0];
+  if (!modelFile || !resultFile) {
+    throw new Error('E_FILE_PAIR: select both analysis model (*_calc.yaml) and result (*_result.json)');
+  }
+  const extras = dataFiles.filter((file) => file !== modelFile && file !== resultFile);
+  if (extras.length > 0) {
+    throw new Error(
+      `E_FILE_AMBIGUOUS: input contains unrecognized or extra file(s): ${extras.map((file) => file.name).join(', ')}`,
+    );
+  }
+  return { modelFile, resultFile };
+}
+
 /**
  * UI から渡される単一/複数ファイル入力を床モード標準形へ変換する。
  * @param {string|Array<{name:string,text:string}>} source
@@ -349,9 +437,13 @@ export function parseFloorDataSource(source) {
     return parseFloorData(source[0].text);
   }
 
-  const manifestFile = source.find(isProjectManifestFile);
+  const manifestFiles = source.filter(isProjectManifestFile);
+  if (manifestFiles.length > 1) {
+    throw new Error('E_FILE_AMBIGUOUS: select at most one project manifest');
+  }
+  const manifestFile = manifestFiles[0];
   const dataFiles = source.filter((file) => file !== manifestFile);
-  const responseFile = dataFiles.find((file) => {
+  const responseFiles = dataFiles.filter((file) => {
     if (!/\.json$/i.test(file.name)) return false;
     try {
       return isResponseArchive(JSON.parse(file.text));
@@ -359,16 +451,22 @@ export function parseFloorDataSource(source) {
       return false;
     }
   });
-  if (responseFile) return parseResponseArchive(responseFile.text);
-
-  const resultFile = dataFiles.find((file) => /(_result|result|modal).*\.json$/i.test(file.name));
-  const modelFile = dataFiles.find((file) => /\.ya?ml$/i.test(file.name))
-    ?? source.find((file) => file !== resultFile && /(_calc|model).*\.json$/i.test(file.name));
-  if (!modelFile || !resultFile) {
-    throw new Error('E_FILE_PAIR: select both analysis model (*_calc.yaml) and result (*_result.json)');
+  if (responseFiles.length > 0) {
+    throw new Error(
+      'E_FILE_MIXED: a response archive must be selected alone; do not mix response and modal project files or select multiple response archives',
+    );
   }
 
-  return parseAnalysisPair(modelFile.text, resultFile.text, manifestFile?.text ?? null, source);
+  const { modelFile, resultFile } = manifestFile
+    ? selectManifestDataFiles(dataFiles, manifestFile.text)
+    : selectLegacyAnalysisFiles(dataFiles);
+
+  return parseAnalysisPair(
+    modelFile.text,
+    resultFile.text,
+    manifestFile?.text ?? null,
+    [modelFile, resultFile],
+  );
 }
 
 /**

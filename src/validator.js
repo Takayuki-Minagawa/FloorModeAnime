@@ -137,6 +137,9 @@ function validateResponseFloorData(data) {
   if (response.schemaVersion !== 'floor-response-archive/1') {
     add('E_RESPONSE_SCHEMA', 'schema_version must be floor-response-archive/1');
   }
+  if (typeof response.caseId !== 'string' || response.caseId.trim() === '') {
+    add('E_RESPONSE_CASE_ID', 'case_id must be a non-empty string');
+  }
   if (response.units?.length !== 'm' || response.units?.time !== 's') {
     add('E_RESPONSE_UNITS', 'response archive must use length=m and time=s');
   }
@@ -158,6 +161,7 @@ function validateResponseFloorData(data) {
     add('E_RESPONSE_NORMALIZATION', 'physical normalization reference is required');
   }
   if (!response.provenance || typeof response.provenance !== 'object'
+    || Array.isArray(response.provenance)
     || Object.keys(response.provenance).length === 0) {
     add('E_RESPONSE_PROVENANCE', 'response archive provenance is required');
   }
@@ -335,6 +339,15 @@ export function validateFloorData(data = {}) {
     const connectedNodeIds = new Set();
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+
+      if (!Number.isInteger(line.id) || line.id <= 0) {
+        limitReached = pushError(
+          errors,
+          'E_LINE_ID_INVALID',
+          `lines[${i}].id=${line.id} must be a positive integer`,
+        );
+        if (limitReached) return { errors, warnings };
+      }
 
       // lines.id 重複
       if (seenLineIds.has(line.id)) {

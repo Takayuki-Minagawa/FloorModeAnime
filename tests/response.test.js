@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { AnimationController } from '../src/animation.js';
-import { parseFloorData } from '../src/parser.js';
+import { parseFloorData, parseFloorDataSource } from '../src/parser.js';
 import { validateFloorData } from '../src/validator.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -37,6 +37,11 @@ describe('floor-response-archive/1', () => {
     controller.setTime(0.1);
     // L_floor=6m, A_ref=0.6m; archive max abs=0.11.
     expect(controller.getDisplayOffset(5)).toBeCloseTo(-0.6, 12);
+  });
+
+  it('uses a symmetric archive-wide range for the diverging contour and legend', () => {
+    const controller = new AnimationController(parseFloorData(responseText));
+    expect(controller.getResponseRange()).toEqual({ min: -0.11, max: 0.11 });
   });
 
   it('matches the response archive exactly when display normalization is OFF', () => {
@@ -81,5 +86,43 @@ describe('floor-response-archive/1', () => {
     const finite = responseObject();
     finite.response_values[1][2] = 'Infinity';
     expect(codes(parseFloorData(JSON.stringify(finite)))).toContain('E_RESPONSE_VALUE_NONFINITE');
+  });
+
+  it('does not coerce JSON null response values or times to zero', () => {
+    const valueArchive = responseObject();
+    valueArchive.response_values[1][2] = Number.POSITIVE_INFINITY;
+    const valueJson = JSON.stringify(valueArchive);
+    expect(JSON.parse(valueJson).response_values[1][2]).toBeNull();
+    expect(codes(parseFloorData(valueJson))).toContain('E_RESPONSE_VALUE_NONFINITE');
+
+    const timeArchive = responseObject();
+    timeArchive.time_s[1] = Number.POSITIVE_INFINITY;
+    const timeJson = JSON.stringify(timeArchive);
+    expect(JSON.parse(timeJson).time_s[1]).toBeNull();
+    expect(codes(parseFloorData(timeJson))).toContain('E_RESPONSE_TIME_NONFINITE');
+  });
+
+  it('rejects response archives mixed with modal project files or another response', () => {
+    const modelText = readFileSync(resolve(root, 'public/Sample/Test0202_calc.yaml'), 'utf8');
+    const resultText = readFileSync(
+      resolve(root, 'public/Sample/Test0202_calc_go_modal_result.json'),
+      'utf8',
+    );
+    const manifestText = readFileSync(
+      resolve(root, 'public/Sample/Test0202_manifest.json'),
+      'utf8',
+    );
+
+    expect(() => parseFloorDataSource([
+      { name: 'response_case.json', text: responseText },
+      { name: 'Test0202_calc.yaml', text: modelText },
+      { name: 'Test0202_calc_go_modal_result.json', text: resultText },
+      { name: 'Test0202_manifest.json', text: manifestText },
+    ])).toThrow(/E_FILE_MIXED/);
+
+    expect(() => parseFloorDataSource([
+      { name: 'first_response.json', text: responseText },
+      { name: 'second_response.json', text: responseText },
+    ])).toThrow(/E_FILE_MIXED/);
   });
 });

@@ -12,6 +12,8 @@ import { dirname, resolve } from 'node:path';
 import { parseFloorData } from '../src/parser.js';
 import { AnimationController } from '../src/animation.js';
 import { setupUI, updatePlaybackDisplays } from '../src/ui.js';
+import { applyTranslations, initLang, setLang } from '../src/i18n.js';
+import { STORAGE_KEYS } from '../src/constants.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
@@ -47,6 +49,7 @@ describe('UI integration (setupUI against real index.html)', () => {
   beforeEach(() => {
     document.documentElement.removeAttribute('data-theme');
     localStorage.clear();
+    setLang('ja');
     loadIndexBody();
     floorData = parseFloorData(sample);
     animController = new AnimationController(floorData);
@@ -128,6 +131,13 @@ describe('UI integration (setupUI against real index.html)', () => {
     expect(document.getElementById('btn-theme').textContent).toContain('ダーク');
   });
 
+  it('保存済み言語の再読込時に言語切替ボタンも同期する', () => {
+    localStorage.setItem(STORAGE_KEYS.lang, 'en');
+    initLang();
+    applyTranslations();
+    expect(document.getElementById('btn-lang').textContent).toBe('JA');
+  });
+
   it('Space キーで再生/停止がトグルする', () => {
     setupUI({ viewer, animController, floorData, onFileLoad: () => {} });
     expect(animController.isPlaying()).toBe(false);
@@ -171,6 +181,8 @@ describe('UI integration (setupUI against real index.html)', () => {
     expect(document.getElementById('response-info').hidden).toBe(false);
     expect(document.getElementById('response-legend').hidden).toBe(false);
     expect(document.getElementById('response-unit').textContent).toContain('m/s^2');
+    expect(document.getElementById('response-legend-min').textContent).toBe('-0.1100');
+    expect(document.getElementById('response-legend-max').textContent).toBe('0.1100');
 
     const checkbox = document.getElementById('chk-response-normalization');
     checkbox.checked = false;

@@ -394,10 +394,11 @@ export class AnimationController {
     return this._dataKind === 'response' ? this._responseUnit : null;
   }
 
-  /** Stable archive-wide color range in physical response units. */
+  /** Stable, symmetric archive-wide color range in physical response units. */
   getResponseRange() {
     if (this._dataKind !== 'response') return { min: 0, max: 0 };
-    return { min: this._responseMin, max: this._responseMax };
+    const maxAbs = Math.max(Math.abs(this._responseMin), Math.abs(this._responseMax));
+    return { min: -maxAbs, max: maxAbs };
   }
 
   /** Current frame range in physical response units. */

@@ -2,6 +2,8 @@
 
 export const RESPONSE_SCHEMA_VERSION = 'floor-response-archive/1';
 
+const strictNumber = (value) => typeof value === 'number' ? value : Number.NaN;
+
 const toCamelCase = (key) => key.replace(/[_-]([a-z0-9])/gi, (_, ch) => ch.toUpperCase());
 
 function camelize(value) {
@@ -57,32 +59,32 @@ export function parseResponseArchive(source) {
   const nodes = new Map();
   const nodeIdCounts = new Map();
   for (const item of data.nodes ?? []) {
-    const id = Number(item.id);
+    const id = strictNumber(item.id);
     nodeIdCounts.set(id, (nodeIdCounts.get(id) ?? 0) + 1);
     nodes.set(id, {
       id,
-      x: Number(item.x),
-      y: Number(item.y),
-      z: Number(item.z),
+      x: strictNumber(item.x),
+      y: strictNumber(item.y),
+      z: strictNumber(item.z),
     });
   }
 
-  const faces = (data.faces ?? []).map((face, index) => ({
-    id: Number(face.id ?? index + 1),
-    nodeIds: (face.nodeIds ?? face.nodes ?? []).map(Number),
+  const faces = (data.faces ?? []).map((face) => ({
+    id: strictNumber(face.id),
+    nodeIds: (face.nodeIds ?? face.nodes ?? []).map(strictNumber),
   }));
   const lines = Array.isArray(data.lines) && data.lines.length > 0
     ? data.lines.map((line) => ({
-      id: Number(line.id),
-      nodeI: Number(line.nodeI),
-      nodeJ: Number(line.nodeJ),
+      id: strictNumber(line.id),
+      nodeI: strictNumber(line.nodeI),
+      nodeJ: strictNumber(line.nodeJ),
     }))
     : deriveLines(faces);
 
-  const nodeOrder = (data.nodeOrder ?? []).map(Number);
-  const times = (data.timeS ?? []).map(Number);
+  const nodeOrder = (data.nodeOrder ?? []).map(strictNumber);
+  const times = (data.timeS ?? []).map(strictNumber);
   const values = (data.responseValues ?? []).map((frame) =>
-    Array.isArray(frame) ? frame.map(Number) : frame);
+    Array.isArray(frame) ? frame.map(strictNumber) : frame);
   const normalization = typeof data.normalization === 'string'
     ? { type: data.normalization, reference: '' }
     : data.normalization;
