@@ -4,6 +4,14 @@
  * @module parser
  */
 
+import {
+  attachProjectManifest,
+  normalizeProjectManifest,
+  parseProjectManifest,
+} from './manifest.js';
+import { isResponseArchive, parseResponseArchive } from './response.js';
+import { parse as parseYaml } from 'yaml';
+
 /**
  * snake_case / kebab-case のキーを camelCase に変換する。
  * 例: "node_i" -> "nodeI", "freq_hz" -> "freqHz"
@@ -24,158 +32,14 @@ function convertKeysToCamelCase(value) {
     return value.map(convertKeysToCamelCase);
   }
   if (value !== null && typeof value === 'object') {
-    const result = {};
-    for (const [k, v] of Object.entries(value)) {
-      result[toCamelCase(k)] = convertKeysToCamelCase(v);
-    }
-    return result;
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [
+        toCamelCase(key),
+        convertKeysToCamelCase(child),
+      ]),
+    );
   }
   return value;
-}
-
-/**
- * YAML のスカラー値をこのアプリで扱う型へ変換する。
- * 対象は解析モデル YAML で使われる単純な subset（数値/真偽/null/文字列）。
- * @param {string} raw
- * @returns {string|number|boolean|null}
- */
-function parseYamlScalar(raw) {
-  const value = raw.trim();
-  if (value === '') return '';
-  if ((value.startsWith("'") && value.endsWith("'"))
-    || (value.startsWith('"') && value.endsWith('"'))) {
-    return value.slice(1, -1);
-  }
-  if (/^(true|false)$/i.test(value)) return value.toLowerCase() === 'true';
-  if (/^(null|~)$/i.test(value)) return null;
-  if (/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value)) {
-    return Number(value);
-  }
-  return value;
-}
-
-/**
- * 行頭スペース数を返す。
- * @param {string} line
- * @returns {number}
- */
-function countIndent(line) {
-  return line.length - line.trimStart().length;
-}
-
-/**
- * `key: value` を 1 回だけ分割する。
- * @param {string} text
- * @returns {[string,string]|null}
- */
-function splitYamlKeyValue(text) {
-  const idx = text.indexOf(':');
-  if (idx < 0) return null;
-  return [text.slice(0, idx).trim(), text.slice(idx + 1).trim()];
-}
-
-/**
- * 指定セクション直下にある `- key: value` 形式のオブジェクト配列を読む。
- * 解析モデルの nodes/elements だけに必要な軽量パーサ。
- * @param {Array<string>} lines
- * @param {RegExp} sectionPattern
- * @param {number} sectionIndent
- * @returns {Array<object>}
- */
-function parseYamlObjectList(lines, sectionPattern, sectionIndent = 2) {
-  const start = lines.findIndex((line) => sectionPattern.test(line));
-  if (start < 0) return [];
-
-  const items = [];
-  let current = null;
-
-  for (let i = start + 1; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    if (trimmed === '' || trimmed.startsWith('#')) continue;
-
-    const indent = countIndent(line);
-    if (indent <= sectionIndent && !trimmed.startsWith('- ')) break;
-
-    if (indent === sectionIndent && trimmed.startsWith('- ')) {
-      current = {};
-      items.push(current);
-      const rest = trimmed.slice(2).trim();
-      const pair = splitYamlKeyValue(rest);
-      if (pair) {
-        current[toCamelCase(pair[0])] = parseYamlScalar(pair[1]);
-      }
-      continue;
-    }
-
-    if (!current || indent !== sectionIndent + 2) continue;
-    const pair = splitYamlKeyValue(trimmed);
-    if (!pair || pair[1] === '') continue;
-    current[toCamelCase(pair[0])] = parseYamlScalar(pair[1]);
-  }
-
-  return items;
-}
-
-/**
- * 指定キー直下の `- value` 形式リストを読む。
- * @param {Array<string>} lines
- * @param {RegExp} keyPattern
- * @returns {Array<*>}
- */
-function parseYamlScalarListAfter(lines, keyPattern) {
-  const start = lines.findIndex((line) => keyPattern.test(line));
-  if (start < 0) return [];
-
-  const keyIndent = countIndent(lines[start]);
-  const values = [];
-  for (let i = start + 1; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    if (trimmed === '' || trimmed.startsWith('#')) continue;
-
-    const indent = countIndent(line);
-    if (indent < keyIndent || (indent === keyIndent && !trimmed.startsWith('- '))) break;
-    if (indent === keyIndent && trimmed.startsWith('- ')) {
-      values.push(parseYamlScalar(trimmed.slice(2)));
-    }
-  }
-  return values;
-}
-
-/**
- * 解析モデル YAML（生成済み calc YAML）のうち、表示とモード復元に必要な
- * nodes / elements / ndf / dof_order / units を抽出する。
- * @param {string} yamlText
- * @returns {object}
- */
-function parseAnalysisModelYaml(yamlText) {
-  const lines = yamlText.replace(/\r\n?/g, '\n').split('\n');
-  const readScalar = (pattern) => {
-    const line = lines.find((l) => pattern.test(l));
-    if (!line) return undefined;
-    const pair = splitYamlKeyValue(line.trim());
-    return pair ? parseYamlScalar(pair[1]) : undefined;
-  };
-
-  const dofOrder = parseYamlScalarListAfter(lines, /^ {4}dof_order:\s*$/);
-
-  return {
-    schemaVersion: readScalar(/^schema_version:\s*/),
-    units: {
-      length: readScalar(/^ {2}length:\s*/),
-    },
-    model: {
-      name: readScalar(/^ {2}name:\s*/),
-      ndm: readScalar(/^ {2}ndm:\s*/),
-      ndf: readScalar(/^ {2}ndf:\s*/),
-      nodes: parseYamlObjectList(lines, /^ {2}nodes:\s*$/),
-      elements: parseYamlObjectList(lines, /^ {2}elements:\s*$/),
-      traceability: {
-        dofOrder: dofOrder.length > 0 ? dofOrder : undefined,
-      },
-    },
-  };
 }
 
 /**
@@ -188,7 +52,7 @@ function parseAnalysisModelText(text) {
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
     return convertKeysToCamelCase(JSON.parse(text));
   }
-  return parseAnalysisModelYaml(text);
+  return convertKeysToCamelCase(parseYaml(text));
 }
 
 /**
@@ -247,20 +111,23 @@ function extractAnalysisPair(data) {
  * @returns {number}
  */
 function nodeIdOf(node) {
-  return Number(node.id ?? node.tag ?? node.nodeTag);
+  const value = node?.id ?? node?.tag ?? node?.nodeTag;
+  return typeof value === 'number' ? value : Number.NaN;
 }
 
 /**
  * 解析モデルの node_i / node_j を既存 line 形式へ変換する。
  * @param {object} element
  * @param {number} fallbackId
- * @returns {{id:number,nodeI:number,nodeJ:number}|null}
+ * @returns {{id:number,nodeI:number,nodeJ:number}}
  */
 function lineFromElement(element, fallbackId) {
-  const nodeI = Number(element.nodeI ?? element.iNode ?? element.nodeTagI);
-  const nodeJ = Number(element.nodeJ ?? element.jNode ?? element.nodeTagJ);
-  if (!Number.isFinite(nodeI) || !Number.isFinite(nodeJ)) return null;
-  const id = Number(element.id ?? element.tag ?? fallbackId);
+  const nodeIRaw = element?.nodeI ?? element?.iNode ?? element?.nodeTagI;
+  const nodeJRaw = element?.nodeJ ?? element?.jNode ?? element?.nodeTagJ;
+  const idRaw = element?.id ?? element?.tag ?? element?.nodeTag ?? fallbackId;
+  const nodeI = typeof nodeIRaw === 'number' ? nodeIRaw : Number.NaN;
+  const nodeJ = typeof nodeJRaw === 'number' ? nodeJRaw : Number.NaN;
+  const id = typeof idRaw === 'number' ? idRaw : Number.NaN;
   return { id, nodeI, nodeJ };
 }
 
@@ -281,20 +148,20 @@ function createFullModeReader(matrix, dofRowCount, modeCount, ndf) {
   }
 
   const rowMajorDof = matrix.length === dofRowCount
-    && matrix.every((row) => Array.isArray(row) && row.length >= modeCount);
+    && matrix.every((row) => Array.isArray(row) && row.length === modeCount);
   if (rowMajorDof) {
     return (nodeIndex, dofIndex, modeIndex) => {
       const row = nodeIndex * ndf + dofIndex;
-      return Number(matrix[row]?.[modeIndex] ?? 0);
+      return matrix[row]?.[modeIndex];
     };
   }
 
-  const rowMajorMode = matrix.length >= modeCount
-    && matrix.slice(0, modeCount).every((row) => Array.isArray(row) && row.length >= dofRowCount);
+  const rowMajorMode = matrix.length === modeCount
+    && matrix.every((row) => Array.isArray(row) && row.length === dofRowCount);
   if (rowMajorMode) {
     return (nodeIndex, dofIndex, modeIndex) => {
       const col = nodeIndex * ndf + dofIndex;
-      return Number(matrix[modeIndex]?.[col] ?? 0);
+      return matrix[modeIndex]?.[col];
     };
   }
 
@@ -311,6 +178,7 @@ function createFullModeReader(matrix, dofRowCount, modeCount, ndf) {
  *
  * @param {object} analysisModel
  * @param {object} analysisResult
+ * @param {{manifest?:object,files?:Array<{name:string,text:string}>}} [options]
  * @returns {{
  *   meta: object,
  *   nodes: Map<number,{id:number,x:number,y:number,z:number}>,
@@ -322,7 +190,7 @@ function createFullModeReader(matrix, dofRowCount, modeCount, ndf) {
  *   phase0: Map<number,number>
  * }}
  */
-export function convertAnalysisPairToFloorData(analysisModel, analysisResult) {
+export function convertAnalysisPairToFloorData(analysisModel, analysisResult, options = {}) {
   const modelRoot = convertKeysToCamelCase(analysisModel);
   const resultRoot = convertKeysToCamelCase(analysisResult);
   const model = modelRoot.model ?? modelRoot;
@@ -330,7 +198,9 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult) {
 
   const parsedNdf = Number(model.ndf ?? 6);
   const ndf = Number.isFinite(parsedNdf) && parsedNdf > 0 ? parsedNdf : 6;
-  const dofOrder = (model.traceability?.dofOrder ?? ['ux', 'uy', 'uz', 'rx', 'ry', 'rz'])
+  const rawDofOrder = model.traceability?.dofOrder;
+  const declaredDofOrder = Array.isArray(rawDofOrder) ? rawDofOrder : null;
+  const dofOrder = (declaredDofOrder ?? ['ux', 'uy', 'uz', 'rx', 'ry', 'rz'])
     .map((dof) => String(dof));
   const uzIndex = dofOrder.findIndex((dof) => dof.toLowerCase() === 'uz');
   const verticalDofIndex = uzIndex >= 0 ? uzIndex : 2;
@@ -340,9 +210,9 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult) {
   const orderedNodeIds = [];
   for (const n of model.nodes ?? []) {
     const id = nodeIdOf(n);
-    const x = Number(n.x ?? 0);
-    const y = Number(n.y ?? 0);
-    const z = Number(n.z ?? 0);
+    const x = typeof n?.x === 'number' ? n.x : Number.NaN;
+    const y = typeof n?.y === 'number' ? n.y : Number.NaN;
+    const z = typeof n?.z === 'number' ? n.z : Number.NaN;
     orderedNodeIds.push(id);
     nodeIdCounts.set(id, (nodeIdCounts.get(id) ?? 0) + 1);
     nodes.set(id, { id, x, y, z });
@@ -351,7 +221,7 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult) {
   const lines = [];
   let fallbackLineId = 1;
   for (const element of model.elements ?? []) {
-    const line = lineFromElement(element, fallbackLineId);
+    const line = lineFromElement(element, options.manifest ? undefined : fallbackLineId);
     fallbackLineId++;
     if (line) lines.push(line);
   }
@@ -360,7 +230,8 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult) {
   const modeShapesFull = result.modeShapesFull;
   const matrixModeCount = Array.isArray(modeShapesFull?.[0]) ? modeShapesFull[0].length : 0;
   const freqCount = Array.isArray(frequencies) ? frequencies.length : Object.keys(frequencies ?? {}).length;
-  const parsedModeCount = Number(resultRoot.numModes ?? result.numModes);
+  const rawModeCount = resultRoot.numModes ?? result.numModes;
+  const parsedModeCount = Number(rawModeCount);
   const modeCount = Number.isInteger(parsedModeCount) && parsedModeCount > 0
     ? parsedModeCount
     : (freqCount > 0 ? freqCount : matrixModeCount);
@@ -369,10 +240,20 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult) {
   for (let i = 0; i < modeCount; i++) {
     const modeNum = i + 1;
     const freq = Array.isArray(frequencies) ? frequencies[i] : frequencies[String(modeNum)];
-    freqHz.set(modeNum, Number(freq));
+    freqHz.set(modeNum, typeof freq === 'number' ? freq : Number.NaN);
   }
 
-  const readFullMode = createFullModeReader(modeShapesFull, orderedNodeIds.length * ndf, modeCount, ndf);
+  const dofRowCount = orderedNodeIds.length * ndf;
+  let readFullMode;
+  try {
+    readFullMode = createFullModeReader(modeShapesFull, dofRowCount, modeCount, ndf);
+  } catch (error) {
+    // A manifest-backed load reports all contract violations together in the
+    // UI. Invalid matrix shapes therefore produce NaN placeholders here and
+    // are rejected by attachProjectManifest/validateFloorData below.
+    if (!options.manifest) throw error;
+    readFullMode = () => Number.NaN;
+  }
   const modes = new Map();
   const modesFull = new Map();
 
@@ -388,7 +269,7 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult) {
         dofValues[dof] = readFullMode(nodeIndex, dofIndex, modeIndex);
       }
       fullNodeMap.set(nodeId, dofValues);
-      uzMap.set(nodeId, dofValues[dofOrder[verticalDofIndex] ?? 'uz'] ?? 0);
+      uzMap.set(nodeId, dofValues[dofOrder[verticalDofIndex] ?? 'uz']);
     });
 
     modes.set(modeNum, uzMap);
@@ -404,16 +285,55 @@ export function convertAnalysisPairToFloorData(analysisModel, analysisResult) {
     verticalDof: dofOrder[verticalDofIndex] ?? 'uz',
   };
 
-  return { meta, nodes, nodeIdCounts, lines, freqHz, modes, modesFull, phase0: new Map() };
+  const floorData = {
+    dataKind: 'mode',
+    meta,
+    nodes,
+    nodeIdCounts,
+    lines,
+    freqHz,
+    modes,
+    modesFull,
+    phase0: new Map(),
+  };
+
+  if (options.manifest) {
+    return attachProjectManifest(floorData, options.manifest, {
+      files: options.files ?? [],
+      modelInfo: {
+        nodeOrder: orderedNodeIds,
+        ndf,
+        dofOrder,
+        hasNdf: Number.isInteger(model.ndf) && model.ndf > 0,
+        hasDofOrder: Array.isArray(rawDofOrder)
+          && rawDofOrder.length > 0
+          && rawDofOrder.every((dof) => typeof dof === 'string'),
+        lengthUnit: modelRoot.units?.length ?? model.units?.length,
+      },
+      resultInfo: {
+        declaredModeCount: rawModeCount,
+        hasDeclaredModeCount: Number.isInteger(rawModeCount) && rawModeCount > 0,
+        dofRowCount,
+        hasFrequencies: Object.hasOwn(result, 'frequenciesHz') || Object.hasOwn(result, 'freqHz'),
+        frequencies,
+        hasFullModes: Object.hasOwn(result, 'modeShapesFull'),
+        modeShapesFull,
+      },
+    });
+  }
+
+  return floorData;
 }
 
 /**
  * 解析モデルテキスト + 解析結果 JSON テキストを床モード標準形へ変換する。
  * @param {string} modelText
  * @param {string} resultText
+ * @param {string|null} [manifestText]
+ * @param {Array<{name:string,text:string}>} [files]
  * @returns {ReturnType<typeof convertAnalysisPairToFloorData>}
  */
-export function parseAnalysisPair(modelText, resultText) {
+export function parseAnalysisPair(modelText, resultText, manifestText = null, files = []) {
   let model;
   let result;
   try {
@@ -426,7 +346,81 @@ export function parseAnalysisPair(modelText, resultText) {
   } catch (e) {
     throw new Error(`E_RESULT_PARSE: ${e.message}`, { cause: e });
   }
-  return convertAnalysisPairToFloorData(model, result);
+  const manifest = manifestText === null ? null : parseProjectManifest(manifestText);
+  return convertAnalysisPairToFloorData(model, result, { manifest, files });
+}
+
+function isProjectManifestFile(file) {
+  if (/manifest.*\.(json|ya?ml)$/i.test(file.name)) return true;
+  if (!/\.json$/i.test(file.name)) return false;
+  try {
+    const value = JSON.parse(file.text);
+    return value?.schema_version === 'floorvib-project/1'
+      || value?.schemaVersion === 'floorvib-project/1';
+  } catch {
+    return false;
+  }
+}
+
+const fileBasename = (path) => String(path ?? '').replaceAll('\\', '/').split('/').at(-1);
+
+function selectManifestDataFiles(dataFiles, manifestText) {
+  const contract = normalizeProjectManifest(parseProjectManifest(manifestText));
+  const expectedModelName = fileBasename(contract.modelArtifact?.path);
+  const expectedResultName = fileBasename(contract.resultArtifact?.path);
+  if (!expectedModelName || !expectedResultName) {
+    throw new Error(
+      'E_MANIFEST_ARTIFACT_MISSING: manifest must identify both model and modal result files',
+    );
+  }
+
+  const selectUnique = (name, role) => {
+    const matches = dataFiles.filter((file) => file.name === name);
+    if (matches.length === 0) {
+      throw new Error(`E_MANIFEST_ARTIFACT_MISSING: ${role} file ${name} was not selected`);
+    }
+    if (matches.length > 1) {
+      throw new Error(`E_FILE_AMBIGUOUS: ${role} file ${name} was selected more than once`);
+    }
+    return matches[0];
+  };
+
+  const modelFile = selectUnique(expectedModelName, 'analysis model');
+  const resultFile = selectUnique(expectedResultName, 'modal result');
+  if (modelFile === resultFile) {
+    throw new Error('E_FILE_AMBIGUOUS: model and modal result must be separate files');
+  }
+  const extras = dataFiles.filter((file) => file !== modelFile && file !== resultFile);
+  if (extras.length > 0) {
+    throw new Error(
+      `E_FILE_AMBIGUOUS: manifest input contains unreferenced file(s): ${extras.map((file) => file.name).join(', ')}`,
+    );
+  }
+  return { modelFile, resultFile };
+}
+
+function selectLegacyAnalysisFiles(dataFiles) {
+  const resultFiles = dataFiles.filter((file) => /(_result|result|modal).*\.json$/i.test(file.name));
+  const yamlModelFiles = dataFiles.filter((file) => /\.ya?ml$/i.test(file.name));
+  const jsonModelFiles = dataFiles.filter((file) => !resultFiles.includes(file)
+    && /(_calc|model).*\.json$/i.test(file.name));
+  const modelFiles = yamlModelFiles.length > 0 ? yamlModelFiles : jsonModelFiles;
+
+  if (resultFiles.length > 1 || modelFiles.length > 1) {
+    throw new Error('E_FILE_AMBIGUOUS: select exactly one analysis model and one modal result');
+  }
+  const modelFile = modelFiles[0];
+  const resultFile = resultFiles[0];
+  if (!modelFile || !resultFile) {
+    throw new Error('E_FILE_PAIR: select both analysis model (*_calc.yaml) and result (*_result.json)');
+  }
+  const extras = dataFiles.filter((file) => file !== modelFile && file !== resultFile);
+  if (extras.length > 0) {
+    throw new Error(
+      `E_FILE_AMBIGUOUS: input contains unrecognized or extra file(s): ${extras.map((file) => file.name).join(', ')}`,
+    );
+  }
+  return { modelFile, resultFile };
 }
 
 /**
@@ -443,14 +437,36 @@ export function parseFloorDataSource(source) {
     return parseFloorData(source[0].text);
   }
 
-  const resultFile = source.find((file) => /(_result|result|modal).*\.json$/i.test(file.name));
-  const modelFile = source.find((file) => /\.ya?ml$/i.test(file.name))
-    ?? source.find((file) => file !== resultFile && /(_calc|model).*\.json$/i.test(file.name));
-  if (!modelFile || !resultFile) {
-    throw new Error('E_FILE_PAIR: select both analysis model (*_calc.yaml) and result (*_result.json)');
+  const manifestFiles = source.filter(isProjectManifestFile);
+  if (manifestFiles.length > 1) {
+    throw new Error('E_FILE_AMBIGUOUS: select at most one project manifest');
+  }
+  const manifestFile = manifestFiles[0];
+  const dataFiles = source.filter((file) => file !== manifestFile);
+  const responseFiles = dataFiles.filter((file) => {
+    if (!/\.json$/i.test(file.name)) return false;
+    try {
+      return isResponseArchive(JSON.parse(file.text));
+    } catch {
+      return false;
+    }
+  });
+  if (responseFiles.length > 0) {
+    throw new Error(
+      'E_FILE_MIXED: a response archive must be selected alone; do not mix response and modal project files or select multiple response archives',
+    );
   }
 
-  return parseAnalysisPair(modelFile.text, resultFile.text);
+  const { modelFile, resultFile } = manifestFile
+    ? selectManifestDataFiles(dataFiles, manifestFile.text)
+    : selectLegacyAnalysisFiles(dataFiles);
+
+  return parseAnalysisPair(
+    modelFile.text,
+    resultFile.text,
+    manifestFile?.text ?? null,
+    [modelFile, resultFile],
+  );
 }
 
 /**
@@ -477,12 +493,16 @@ export function parseFloorData(jsonString) {
     throw new Error(`JSON parse error: ${e.message}`, { cause: e });
   }
 
+  if (isResponseArchive(raw)) return parseResponseArchive(raw);
+
   // --- 2. キー名を camelCase に変換 -----------------------------------------
   const data = convertKeysToCamelCase(raw);
 
   const analysisPair = extractAnalysisPair(data);
   if (analysisPair) {
-    return convertAnalysisPairToFloorData(analysisPair.model, analysisPair.result);
+    return convertAnalysisPairToFloorData(analysisPair.model, analysisPair.result, {
+      manifest: data.projectManifest ?? data.manifest,
+    });
   }
 
   // --- 3. meta --------------------------------------------------------------
@@ -559,5 +579,14 @@ export function parseFloorData(jsonString) {
     }
   }
 
-  return { meta, nodes, nodeIdCounts, lines, freqHz, modes, phase0 };
+  return {
+    dataKind: 'mode',
+    meta,
+    nodes,
+    nodeIdCounts,
+    lines,
+    freqHz,
+    modes,
+    phase0,
+  };
 }

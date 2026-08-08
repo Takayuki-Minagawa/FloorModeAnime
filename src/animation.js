@@ -11,12 +11,25 @@
 import { TWO_PI, SCALE, SPEED } from './constants.js';
 import { computeFloorMetrics } from './geometry.js';
 
+function responseRange(frames) {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const frame of frames) {
+    for (const value of frame) {
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
+  }
+  return min === Infinity ? { min: 0, max: 0 } : { min, max };
+}
+
 export class AnimationController {
   /**
    * @param {Object} floorData - parseFloorData の戻り値
    *   { meta, nodes: Map<id,{id,x,y,z}>, lines, freqHz: Map<modeNum,freq>, modes: Map<modeNum,Map<nodeId,uz>> }
    */
   constructor(floorData) {
+    this._dataKind = floorData.dataKind ?? 'mode';
     this._nodes = floorData.nodes;       // Map<id, {id,x,y,z}>
     this._lines = floorData.lines;       // Array<{id, nodeI, nodeJ}>
     this._freqHz = floorData.freqHz;     // Map<modeNum, freq>
@@ -28,9 +41,40 @@ export class AnimationController {
     this._lFloor = metrics.lFloor;
     this._aRef = metrics.aRef;
 
+    // 共通状態初期化
+    this._currentMode = null;
+    this._scale = SCALE.DEFAULT;
+    this._speed = SPEED.DEFAULT;
+    this._time = 0;
+    this._playing = false;
+    this._displayNormalized = true;
+    this._modeList = [];
+    this._umaxMap = new Map();
+    this._maxNodeMap = new Map();
+
+    if (this._dataKind === 'response') {
+      const response = floorData.response;
+      this._responseTimes = response.times;
+      this._responseValues = response.values;
+      this._responseNodeOrder = response.nodeOrder;
+      this._responseNodeIndex = new Map(
+        this._responseNodeOrder.map((nodeId, index) => [nodeId, index]),
+      );
+      this._responseQuantity = response.quantity;
+      this._responseUnit = response.unit;
+      const range = responseRange(this._responseValues);
+      this._responseMin = range.min;
+      this._responseMax = range.max;
+      this._responseMaxAbs = Math.max(
+        Math.abs(this._responseMin),
+        Math.abs(this._responseMax),
+        Number.EPSILON,
+      );
+      this._time = this._responseTimes[0] ?? 0;
+      return;
+    }
+
     // Umax_m と最大変位節点をモードごとに事前計算
-    this._umaxMap = new Map();    // Map<modeNum, number>
-    this._maxNodeMap = new Map(); // Map<modeNum, nodeId>
     for (const [modeNum, modeShape] of this._modes) {
       let umax = 0;
       let maxNodeId = null;
@@ -46,13 +90,6 @@ export class AnimationController {
       this._maxNodeMap.set(modeNum, maxNodeId);
     }
 
-    // 状態初期化
-    this._currentMode = null;
-    this._scale = SCALE.DEFAULT;     // S: 変形倍率
-    this._speed = SPEED.DEFAULT;     // 再生速度倍率
-    this._time = 0;        // t [s]
-    this._playing = false;
-
     // 利用可能モード一覧（ソート済み）
     this._modeList = Array.from(this._modes.keys()).sort((a, b) => a - b);
 
@@ -67,6 +104,7 @@ export class AnimationController {
    * @param {number} modeNum
    */
   setMode(modeNum) {
+    if (this._dataKind === 'response') return;
     this._currentMode = modeNum;
     this._time = 0;
     this._playing = false;
@@ -76,7 +114,13 @@ export class AnimationController {
    * 再生開始
    */
   play() {
-    if (this._currentMode !== null) {
+    if (this._dataKind === 'response') {
+      if (this._responseTimes.length > 0) {
+        const last = this._responseTimes.at(-1);
+        if (this._time >= last) this._time = this._responseTimes[0];
+        this._playing = true;
+      }
+    } else if (this._currentMode !== null) {
       this._playing = true;
     }
   }
@@ -125,6 +169,10 @@ export class AnimationController {
 
     const z_i = node.z;
 
+    if (this._dataKind === 'response') {
+      return z_i + this.getDisplayOffset(nodeId);
+    }
+
     if (this._currentMode === null) {
       return z_i;
     }
@@ -163,6 +211,16 @@ export class AnimationController {
     return this._speed;
   }
 
+  /** 現在の表示倍率を返す。 */
+  getScale() {
+    return this._scale;
+  }
+
+  /** 入力データ種別（mode / response）を返す。 */
+  getDataKind() {
+    return this._dataKind;
+  }
+
   /**
    * フレーム更新 (再生中のみ t を進める)
    * @param {number} deltaTime - 経過時間 [s]
@@ -170,6 +228,13 @@ export class AnimationController {
   update(deltaTime) {
     if (this._playing) {
       this._time += deltaTime * this._speed;
+      if (this._dataKind === 'response') {
+        const end = this._responseTimes.at(-1) ?? this._time;
+        if (this._time >= end) {
+          this._time = end;
+          this._playing = false;
+        }
+      }
     }
   }
 
@@ -199,7 +264,14 @@ export class AnimationController {
    * @param {number} t
    */
   setTime(t) {
-    this._time = Math.max(0, Number(t) || 0);
+    const value = Number(t);
+    if (this._dataKind === 'response') {
+      const start = this._responseTimes[0] ?? 0;
+      const end = this._responseTimes.at(-1) ?? start;
+      this._time = Math.max(start, Math.min(end, Number.isFinite(value) ? value : start));
+      return;
+    }
+    this._time = Math.max(0, value || 0);
   }
 
   /**
@@ -232,6 +304,18 @@ export class AnimationController {
    * @returns {number|null}
    */
   getMaxNode(modeNum) {
+    if (this._dataKind === 'response') {
+      let maxNode = null;
+      let maxValue = -1;
+      for (const nodeId of this._responseNodeOrder) {
+        const value = Math.abs(this.getResponseValue(nodeId));
+        if (value > maxValue) {
+          maxValue = value;
+          maxNode = nodeId;
+        }
+      }
+      return maxNode;
+    }
     if (modeNum === undefined || modeNum === null) {
       modeNum = this._currentMode;
     }
@@ -246,6 +330,9 @@ export class AnimationController {
    * @returns {number}
    */
   getNormalizedUz(nodeId, modeNum) {
+    if (this._dataKind === 'response') {
+      return this.getResponseValue(nodeId) / this._responseMaxAbs;
+    }
     if (modeNum === undefined || modeNum === null) {
       modeNum = this._currentMode;
     }
@@ -254,6 +341,102 @@ export class AnimationController {
     const uz = modeShape.get(nodeId) ?? 0;
     const umax = this._umaxMap.get(modeNum) ?? 1;
     return uz / umax;
+  }
+
+  /** Toggle L/10 shape normalization for physical response archives. */
+  setDisplayNormalized(enabled) {
+    if (this._dataKind === 'response') this._displayNormalized = Boolean(enabled);
+  }
+
+  isDisplayNormalized() {
+    return this._dataKind === 'response' ? this._displayNormalized : true;
+  }
+
+  /** Raw response value at the current time, linearly interpolated. */
+  getResponseValue(nodeId) {
+    if (this._dataKind !== 'response') return 0;
+    const nodeIndex = this._responseNodeIndex.get(nodeId);
+    if (nodeIndex === undefined || this._responseTimes.length === 0) return 0;
+    const times = this._responseTimes;
+    if (this._time <= times[0]) return this._responseValues[0][nodeIndex];
+    const lastIndex = times.length - 1;
+    if (this._time >= times[lastIndex]) return this._responseValues[lastIndex][nodeIndex];
+
+    let low = 0;
+    let high = lastIndex;
+    while (high - low > 1) {
+      const mid = Math.floor((low + high) / 2);
+      if (times[mid] <= this._time) low = mid;
+      else high = mid;
+    }
+    const ratio = (this._time - times[low]) / (times[high] - times[low]);
+    const first = this._responseValues[low][nodeIndex];
+    const second = this._responseValues[high][nodeIndex];
+    return first + (second - first) * ratio;
+  }
+
+  /** Viewer ordinate: normalized L/10 presentation or exact raw archive value. */
+  getDisplayOffset(nodeId) {
+    if (this._dataKind !== 'response') {
+      const node = this._nodes.get(nodeId);
+      return node ? this.getDisplacedZ(nodeId) - node.z : 0;
+    }
+    const value = this.getResponseValue(nodeId);
+    if (!this._displayNormalized) return value;
+    return this._scale * this._aRef * (value / this._responseMaxAbs);
+  }
+
+  getResponseQuantity() {
+    return this._dataKind === 'response' ? this._responseQuantity : null;
+  }
+
+  getResponseUnit() {
+    return this._dataKind === 'response' ? this._responseUnit : null;
+  }
+
+  /** Stable, symmetric archive-wide color range in physical response units. */
+  getResponseRange() {
+    if (this._dataKind !== 'response') return { min: 0, max: 0 };
+    const maxAbs = Math.max(Math.abs(this._responseMin), Math.abs(this._responseMax));
+    return { min: -maxAbs, max: maxAbs };
+  }
+
+  /** Current frame range in physical response units. */
+  getCurrentResponseRange() {
+    if (this._dataKind !== 'response') return { min: 0, max: 0 };
+    let min = Infinity;
+    let max = -Infinity;
+    for (const nodeId of this._responseNodeOrder) {
+      const value = this.getResponseValue(nodeId);
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
+    return min === Infinity ? { min: 0, max: 0 } : { min, max };
+  }
+
+  getTimelineRange() {
+    if (this._dataKind === 'response') {
+      return {
+        min: this._responseTimes[0] ?? 0,
+        max: this._responseTimes.at(-1) ?? 0,
+      };
+    }
+    return { min: 0, max: this.getPeriod() };
+  }
+
+  /** Move to the adjacent archive time sample and stop. */
+  stepResponseFrame(direction) {
+    if (this._dataKind !== 'response' || this._responseTimes.length === 0) return;
+    this.stop();
+    if (direction >= 0) {
+      const next = this._responseTimes.find((time) => time > this._time + Number.EPSILON);
+      this.setTime(next ?? this._responseTimes.at(-1));
+    } else {
+      const previous = [...this._responseTimes]
+        .reverse()
+        .find((time) => time < this._time - Number.EPSILON);
+      this.setTime(previous ?? this._responseTimes[0]);
+    }
   }
 
   /**

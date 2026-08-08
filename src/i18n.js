@@ -30,7 +30,7 @@ const dict = {
     chkAxes: '軸',
     chkGrid: 'グリッド',
     chkNodeIds: '節点番号',
-    fileInputHint: '*_calc.yaml と *_result.json、または従来形式JSONを選択して読み込みます',
+    fileInputHint: 'calc YAML・modal result JSON・任意のmanifest、または応答archive JSONを読み込みます',
     modeOption: 'モード {n} ({f} Hz)',
     freqDisplay: 'f = {f} Hz',
     periodDisplay: 'T = {t} s',
@@ -45,16 +45,30 @@ const dict = {
     viewTop: '平面',
     viewFront: '正面',
     viewSide: '側面',
-    chkHighlight: '最大変位',
-    labelExport: 'データ出力',
-    btnExportCsv: '変位CSV',
-    btnExportJson: '変位JSON',
+    chkHighlight: '最大振幅',
+    labelScreening: '歩行共振帯スクリーニング',
+    labelExport: '表示用正規化座標',
+    btnExportCsv: '表示座標CSV',
+    btnExportJson: '表示座標JSON',
+    labelResponseExport: '物理応答archive値',
+    btnResponseCsv: '応答値CSV',
+    btnResponseJson: '応答値JSON',
     labelModeShape: 'モード形 数値',
+    labelResponseValues: '物理応答 数値',
     thNode: '節点',
     thUz: '正規化uz',
-    dropHint: 'calc YAML と result JSON をドロップして読み込み',
+    thResponseValue: '応答実値',
+    dropHint: 'modalデータ一式、または応答archiveをドロップして読み込み',
     habHigh: '⚠ 歩行共振帯',
     habMedium: '△ 倍音共振帯',
+    labelResponse: '物理応答',
+    chkResponseNormalization: '表示を L/10 に正規化',
+    responseQuantity: '応答量: {q}',
+    responseUnit: '単位: {u}',
+    displayMeaningMode: '表示振幅: 床寸法 L/10 に正規化した演出（物理応答ではありません）',
+    displayMeaningResponseNormalized: '物理応答archive: 色は実値、形状のみ床寸法 L/10 に正規化',
+    displayMeaningResponsePhysical: '物理応答archive: 正規化OFF（鉛直表示量はarchive実値と数値一致。変位量でない応答を変位とは解釈しません）',
+    responseLegend: '{q} [{u}]',
     unitLabel: '単位: {u}',
     alertPngStop: 'PNG保存はアニメーション停止中のみ実行できます。',
     alertPngFail: 'PNG保存失敗: {msg}',
@@ -68,11 +82,11 @@ const dict = {
     messageSummaryBoth: 'エラー {errors} 件 / 警告 {warnings} 件',
     helpTitle: '使い方',
     helpContent:
-      '1. サンプルデータが自動的に読み込まれます。独自の calc YAML + result JSON も「データ読込」から読み込めます。\n' +
+      '1. サンプルデータが自動的に読み込まれます。独自の calc YAML + result JSON + manifest、または応答archiveも「データ読込」から読み込めます。\n' +
       '2. 「モード」ドロップダウンで振動モードを切り替えます。\n' +
       '3. 「再生」で振動アニメーションを開始、「停止」で一時停止します。\n' +
       '4. 「速度」スライダーでアニメーション速度を調整します（0.2x〜2.0x）。\n' +
-      '5. 「倍率」スライダーで変形表示のスケールを調整します（0.5〜3.0）。\n' +
+      '5. 「倍率」スライダーで表示スケールを調整します（0.5〜3.0）。モード表示は常に床寸法L/10基準で、物理応答ではありません。\n' +
       '6. 「表示切替」チェックボックスで各要素の表示/非表示を制御します。\n' +
       '7. アニメーション停止中に「PNG保存」でスクリーンショットを保存できます。\n' +
       '8. マウスドラッグで回転、右クリックドラッグでパン、スクロールでズームできます。',
@@ -100,7 +114,7 @@ const dict = {
     chkAxes: 'Axes',
     chkGrid: 'Grid',
     chkNodeIds: 'Node IDs',
-    fileInputHint: 'Select *_calc.yaml and *_result.json, or a legacy JSON file',
+    fileInputHint: 'Load calc YAML, modal result JSON, an optional manifest, or a response archive JSON',
     modeOption: 'Mode {n} ({f} Hz)',
     freqDisplay: 'f = {f} Hz',
     periodDisplay: 'T = {t} s',
@@ -115,16 +129,30 @@ const dict = {
     viewTop: 'Top',
     viewFront: 'Front',
     viewSide: 'Side',
-    chkHighlight: 'Max disp.',
-    labelExport: 'Export',
-    btnExportCsv: 'Disp. CSV',
-    btnExportJson: 'Disp. JSON',
+    chkHighlight: 'Max amplitude',
+    labelScreening: 'Walking resonance-band screening',
+    labelExport: 'Normalized display coordinates',
+    btnExportCsv: 'Display CSV',
+    btnExportJson: 'Display JSON',
+    labelResponseExport: 'Physical archive values',
+    btnResponseCsv: 'Response CSV',
+    btnResponseJson: 'Response JSON',
     labelModeShape: 'Mode Shape Values',
+    labelResponseValues: 'Physical Response Values',
     thNode: 'Node',
     thUz: 'Norm. uz',
-    dropHint: 'Drop calc YAML and result JSON to load',
+    thResponseValue: 'Response value',
+    dropHint: 'Drop a modal data set or response archive to load',
     habHigh: '⚠ Walking resonance',
     habMedium: '△ Harmonic resonance',
+    labelResponse: 'Physical response',
+    chkResponseNormalization: 'Normalize display to L/10',
+    responseQuantity: 'Response: {q}',
+    responseUnit: 'Unit: {u}',
+    displayMeaningMode: 'Display amplitude: normalized to floor dimension L/10 (not a physical response)',
+    displayMeaningResponseNormalized: 'Physical response archive: colors show physical values; shape is normalized to L/10',
+    displayMeaningResponsePhysical: 'Physical response archive: normalization OFF (the vertical display ordinate numerically matches the archive; non-displacement quantities are not displacement)',
+    responseLegend: '{q} [{u}]',
     unitLabel: 'Unit: {u}',
     alertPngStop: 'PNG can only be saved while animation is stopped.',
     alertPngFail: 'PNG save failed: {msg}',
@@ -138,11 +166,11 @@ const dict = {
     messageSummaryBoth: '{errors} error(s) / {warnings} warning(s)',
     helpTitle: 'How to Use',
     helpContent:
-      '1. Sample data loads automatically. You can also load calc YAML + result JSON via "Load Data".\n' +
+      '1. Sample data loads automatically. You can also load calc YAML + modal result JSON + manifest, or a response archive, via "Load Data".\n' +
       '2. Use the "Mode" dropdown to switch between vibration modes.\n' +
       '3. Press "Play" to start animation, "Stop" to pause.\n' +
       '4. Adjust animation speed with the "Speed" slider (0.2x - 2.0x).\n' +
-      '5. Adjust deformation scale with the "Scale" slider (0.5 - 3.0).\n' +
+      '5. Adjust display scale with the "Scale" slider (0.5 - 3.0). Mode shapes always use the floor-dimension L/10 convention and are not physical response.\n' +
       '6. Toggle element visibility with the "Visibility" checkboxes.\n' +
       '7. Save a screenshot with "Save PNG" while animation is stopped.\n' +
       '8. Mouse drag to rotate, right-click drag to pan, scroll to zoom.',

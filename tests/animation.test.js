@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { AnimationController } from '../src/animation.js';
-import { SCALE, SPEED, TWO_PI } from '../src/constants.js';
+import { SPEED, TWO_PI } from '../src/constants.js';
 
 function makeNodes(arr) {
   const m = new Map();

@@ -6,7 +6,6 @@
 
 import { parseFloorDataSource } from './parser.js';
 import { validateFloorData } from './validator.js';
-import { FloorViewer } from './viewer.js';
 import { AnimationController } from './animation.js';
 import { setupUI, updatePlaybackDisplays } from './ui.js';
 import { initLang, t, applyTranslations } from './i18n.js';
@@ -127,7 +126,7 @@ function loadData(source) {
   });
 
   // 初回描画（アニメーションループ開始前にレンダリング）
-  viewer.updateDeformed((id) => animController.getDisplacedZ(id));
+  updateViewerFrame();
   viewer.render();
 
   // アニメーションループ開始
@@ -183,13 +182,23 @@ function animationLoop(timestamp) {
   animController.update(delta);
 
   // 変形線更新
-  viewer.updateDeformed((id) => animController.getDisplacedZ(id));
+  updateViewerFrame();
 
   // 描画
   viewer.render();
 
   // 時間表示・タイムライン追従
-  updatePlaybackDisplays(animController);
+  updatePlaybackDisplays(animController, viewer);
+}
+
+function updateViewerFrame() {
+  if (!viewer || !animController) return;
+  const isResponse = animController.getDataKind() === 'response';
+  viewer.updateDeformed(
+    (id) => animController.getDisplacedZ(id),
+    isResponse ? (id) => animController.getResponseValue(id) : undefined,
+    isResponse ? animController.getResponseRange() : undefined,
+  );
 }
 
 /**
@@ -205,6 +214,8 @@ export async function initApp() {
 
   // FloorViewer 初期化
   try {
+    // three.js と描画addonsは初期化時に別chunkとして遅延読込する。
+    const { FloorViewer } = await import('./viewer.js');
     viewer = new FloorViewer(canvasContainer);
   } catch (err) {
     console.error('FloorViewer init failed:', err);
@@ -230,19 +241,24 @@ export async function initApp() {
     if (viewer) viewer.resize();
   });
 
-  // サンプル calc/result 自動読込
+  // manifest 付きサンプル calc/result 自動読込
   let loaded = false;
   try {
-    const [modelRes, resultRes] = await Promise.all([
+    const [modelRes, resultRes, manifestRes] = await Promise.all([
       fetch('Sample/Test0202_calc.yaml'),
       fetch('Sample/Test0202_calc_go_modal_result.json'),
+      fetch('Sample/Test0202_manifest.json'),
     ]);
     if (!modelRes.ok) throw new Error(`model HTTP ${modelRes.status}`);
     if (!resultRes.ok) throw new Error(`result HTTP ${resultRes.status}`);
-    const [modelText, resultText] = await Promise.all([modelRes.text(), resultRes.text()]);
+    if (!manifestRes.ok) throw new Error(`manifest HTTP ${manifestRes.status}`);
+    const [modelText, resultText, manifestText] = await Promise.all([
+      modelRes.text(), resultRes.text(), manifestRes.text(),
+    ]);
     loaded = loadData([
       { name: 'Test0202_calc.yaml', text: modelText },
       { name: 'Test0202_calc_go_modal_result.json', text: resultText },
+      { name: 'Test0202_manifest.json', text: manifestText },
     ]);
   } catch (err) {
     console.error('Sample data load failed:', err);

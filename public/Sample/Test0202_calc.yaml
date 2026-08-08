@@ -98,6 +98,54 @@ model:
     x: 2000.0
     y: 1000.0
     z: 2800.0
+  - tag: 123
+    x: 0.0
+    y: 250.0
+    z: 2800.0
+  - tag: 124
+    x: 0.0
+    y: 500.0
+    z: 2800.0
+  - tag: 125
+    x: 0.0
+    y: 750.0
+    z: 2800.0
+  - tag: 126
+    x: 0.0
+    y: 1250.0
+    z: 2800.0
+  - tag: 127
+    x: 0.0
+    y: 1500.0
+    z: 2800.0
+  - tag: 128
+    x: 0.0
+    y: 1750.0
+    z: 2800.0
+  - tag: 129
+    x: 2000.0
+    y: 250.0
+    z: 2800.0
+  - tag: 130
+    x: 2000.0
+    y: 500.0
+    z: 2800.0
+  - tag: 131
+    x: 2000.0
+    y: 750.0
+    z: 2800.0
+  - tag: 132
+    x: 2000.0
+    y: 1250.0
+    z: 2800.0
+  - tag: 133
+    x: 2000.0
+    y: 1500.0
+    z: 2800.0
+  - tag: 134
+    x: 2000.0
+    y: 1750.0
+    z: 2800.0
   - tag: 3001
     x: 250.0
     y: 0.0
@@ -117,6 +165,22 @@ model:
   - tag: 3005
     x: 250.0
     y: 2000.0
+    z: 2800.0
+  - tag: 3006
+    x: 250.0
+    y: 250.0
+    z: 2800.0
+  - tag: 3007
+    x: 250.0
+    y: 750.0
+    z: 2800.0
+  - tag: 3008
+    x: 250.0
+    y: 1250.0
+    z: 2800.0
+  - tag: 3009
+    x: 250.0
+    y: 1750.0
     z: 2800.0
   - tag: 3011
     x: 750.0
@@ -138,6 +202,22 @@ model:
     x: 750.0
     y: 2000.0
     z: 2800.0
+  - tag: 3016
+    x: 750.0
+    y: 250.0
+    z: 2800.0
+  - tag: 3017
+    x: 750.0
+    y: 750.0
+    z: 2800.0
+  - tag: 3018
+    x: 750.0
+    y: 1250.0
+    z: 2800.0
+  - tag: 3019
+    x: 750.0
+    y: 1750.0
+    z: 2800.0
   - tag: 3021
     x: 1250.0
     y: 0.0
@@ -158,6 +238,22 @@ model:
     x: 1250.0
     y: 2000.0
     z: 2800.0
+  - tag: 3026
+    x: 1250.0
+    y: 250.0
+    z: 2800.0
+  - tag: 3027
+    x: 1250.0
+    y: 750.0
+    z: 2800.0
+  - tag: 3028
+    x: 1250.0
+    y: 1250.0
+    z: 2800.0
+  - tag: 3029
+    x: 1250.0
+    y: 1750.0
+    z: 2800.0
   - tag: 3031
     x: 1750.0
     y: 0.0
@@ -177,6 +273,22 @@ model:
   - tag: 3035
     x: 1750.0
     y: 2000.0
+    z: 2800.0
+  - tag: 3036
+    x: 1750.0
+    y: 250.0
+    z: 2800.0
+  - tag: 3037
+    x: 1750.0
+    y: 750.0
+    z: 2800.0
+  - tag: 3038
+    x: 1750.0
+    y: 1250.0
+    z: 2800.0
+  - tag: 3039
+    x: 1750.0
+    y: 1750.0
     z: 2800.0
   - tag: 9001
     x: 250.0
@@ -216,361 +328,392 @@ model:
     - ux
     - uy
     - uz
-    - rx
-    - ry
-    - rz
   - node_tag: 2
     dofs:
     - ux
     - uy
     - uz
-    - rx
-    - ry
-    - rz
   - node_tag: 3
     dofs:
     - ux
     - uy
     - uz
-    - rx
-    - ry
-    - rz
   - node_tag: 4
     dofs:
     - ux
     - uy
     - uz
-    - rx
+    - rz
+  analysis_restraints:
+  - name: approved_massless_torsion_stabilization
+    usage: approved-static-condensation-stabilization
+    node_tags:
+    - 3001
+    - 3011
+    - 3021
+    - 3031
+    dofs:
     - ry
-    - rz
-  - node_tag: 101
+    purpose: remove the four zero-energy panel torsion modes before mass-nullspace static condensation
+  - name: floor_horizontal_restraints
+    usage: not_applied_by_default
+    node_tags:
+    - 101
+    - 102
+    - 103
+    - 104
+    - 105
+    - 106
+    - 107
+    - 111
+    - 112
+    - 113
+    - 114
+    - 115
+    - 116
+    - 117
+    - 121
+    - 122
+    - 123
+    - 124
+    - 125
+    - 126
+    - 127
+    - 128
+    - 129
+    - 130
+    - 131
+    - 132
+    - 133
+    - 134
+    - 3002
+    - 3003
+    - 3004
+    - 3006
+    - 3007
+    - 3008
+    - 3009
+    - 3012
+    - 3013
+    - 3014
+    - 3016
+    - 3017
+    - 3018
+    - 3019
+    - 3022
+    - 3023
+    - 3024
+    - 3026
+    - 3027
+    - 3028
+    - 3029
+    - 3032
+    - 3033
+    - 3034
+    - 3036
+    - 3037
+    - 3038
+    - 3039
     dofs:
     - ux
     - uy
-    - rx
-    - rz
-  - node_tag: 102
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 103
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 104
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 105
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 106
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 107
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 111
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 112
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 113
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 114
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 115
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 116
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 117
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 121
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 122
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 3001
+    purpose: optional modal extraction restraint; not applied during eigen analysis
+  - name: torsion_stabilization_floor_nodes
+    usage: not_applied_by_default
+    node_tags:
+    - 101
+    - 102
+    - 103
+    - 104
+    - 105
+    - 106
+    - 107
+    - 111
+    - 112
+    - 113
+    - 114
+    - 115
+    - 116
+    - 117
+    - 121
+    - 122
+    - 123
+    - 124
+    - 125
+    - 126
+    - 127
+    - 128
+    - 129
+    - 130
+    - 131
+    - 132
+    - 133
+    - 134
+    - 3001
+    - 3002
+    - 3003
+    - 3004
+    - 3005
+    - 3006
+    - 3007
+    - 3008
+    - 3009
+    - 3011
+    - 3012
+    - 3013
+    - 3014
+    - 3015
+    - 3016
+    - 3017
+    - 3018
+    - 3019
+    - 3021
+    - 3022
+    - 3023
+    - 3024
+    - 3025
+    - 3026
+    - 3027
+    - 3028
+    - 3029
+    - 3031
+    - 3032
+    - 3033
+    - 3034
+    - 3035
+    - 3036
+    - 3037
+    - 3038
+    - 3039
     dofs:
     - rx
     - rz
-  - node_tag: 3002
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 3003
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 3004
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 3005
-    dofs:
-    - rx
-    - rz
-  - node_tag: 3011
-    dofs:
-    - rx
-    - rz
-  - node_tag: 3012
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 3013
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 3014
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 3015
-    dofs:
-    - rx
-    - rz
-  - node_tag: 3021
-    dofs:
-    - rx
-    - rz
-  - node_tag: 3022
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 3023
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 3024
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 3025
-    dofs:
-    - rx
-    - rz
-  - node_tag: 3031
-    dofs:
-    - rx
-    - rz
-  - node_tag: 3032
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 3033
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 3034
-    dofs:
-    - ux
-    - uy
-    - rx
-    - rz
-  - node_tag: 3035
-    dofs:
-    - rx
-    - rz
+    purpose: optional drilling/torsion stabilization candidate; not applied during eigen
+      analysis
   nodal_masses:
   - node_tag: 101
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 102
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 103
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 104
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 105
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 106
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 107
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 111
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 112
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 113
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 114
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 115
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 116
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 117
     mass:
     - 0.0
     - 0.0
-    - 0.03925907419965024
+    - 0.0029660230557835756
     - 0.0
-    - 204.47434478984496
+    - 0.0
     - 0.0
   - node_tag: 121
     mass:
     - 0.0
     - 0.0
-    - 0.15703629679860096
+    - 0.0029660230557835756
     - 0.0
-    - 13086.358066550078
+    - 0.0
     - 0.0
   - node_tag: 122
     mass:
     - 0.0
     - 0.0
-    - 0.15703629679860096
+    - 0.0029660230557835756
     - 0.0
-    - 13086.358066550078
+    - 0.0
+    - 0.0
+  - node_tag: 123
+    mass:
+    - 0.0
+    - 0.0
+    - 0.0029660230557835756
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 124
+    mass:
+    - 0.0
+    - 0.0
+    - 0.0029660230557835756
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 125
+    mass:
+    - 0.0
+    - 0.0
+    - 0.0029660230557835756
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 126
+    mass:
+    - 0.0
+    - 0.0
+    - 0.0029660230557835756
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 127
+    mass:
+    - 0.0
+    - 0.0
+    - 0.0029660230557835756
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 128
+    mass:
+    - 0.0
+    - 0.0
+    - 0.0029660230557835756
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 129
+    mass:
+    - 0.0
+    - 0.0
+    - 0.0029660230557835756
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 130
+    mass:
+    - 0.0
+    - 0.0
+    - 0.0029660230557835756
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 131
+    mass:
+    - 0.0
+    - 0.0
+    - 0.0029660230557835756
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 132
+    mass:
+    - 0.0
+    - 0.0
+    - 0.0029660230557835756
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 133
+    mass:
+    - 0.0
+    - 0.0
+    - 0.0029660230557835756
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 134
+    mass:
+    - 0.0
+    - 0.0
+    - 0.0029660230557835756
+    - 0.0
+    - 0.0
     - 0.0
   - node_tag: 3001
     mass:
@@ -578,31 +721,31 @@ model:
     - 0.0
     - 0.0
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3002
     mass:
     - 0.0
     - 0.0
-    - 0.0204
+    - 0.010197162129779282
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3003
     mass:
     - 0.0
     - 0.0
-    - 0.0204
+    - 0.010197162129779282
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3004
     mass:
     - 0.0
     - 0.0
-    - 0.0204
+    - 0.010197162129779282
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3005
     mass:
@@ -610,7 +753,39 @@ model:
     - 0.0
     - 0.0
     - 0.0
-    - 10.0
+    - 0.0
+    - 0.0
+  - node_tag: 3006
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 3007
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 3008
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 3009
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
     - 0.0
   - node_tag: 3011
     mass:
@@ -618,31 +793,31 @@ model:
     - 0.0
     - 0.0
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3012
     mass:
     - 0.0
     - 0.0
-    - 0.0204
+    - 0.010197162129779282
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3013
     mass:
     - 0.0
     - 0.0
-    - 0.0204
+    - 0.010197162129779282
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3014
     mass:
     - 0.0
     - 0.0
-    - 0.0204
+    - 0.010197162129779282
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3015
     mass:
@@ -650,7 +825,39 @@ model:
     - 0.0
     - 0.0
     - 0.0
-    - 10.0
+    - 0.0
+    - 0.0
+  - node_tag: 3016
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 3017
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 3018
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 3019
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
     - 0.0
   - node_tag: 3021
     mass:
@@ -658,31 +865,31 @@ model:
     - 0.0
     - 0.0
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3022
     mass:
     - 0.0
     - 0.0
-    - 0.0204
+    - 0.010197162129779282
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3023
     mass:
     - 0.0
     - 0.0
-    - 0.0204
+    - 0.010197162129779282
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3024
     mass:
     - 0.0
     - 0.0
-    - 0.0204
+    - 0.010197162129779282
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3025
     mass:
@@ -690,7 +897,39 @@ model:
     - 0.0
     - 0.0
     - 0.0
-    - 10.0
+    - 0.0
+    - 0.0
+  - node_tag: 3026
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 3027
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 3028
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 3029
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
     - 0.0
   - node_tag: 3031
     mass:
@@ -698,31 +937,31 @@ model:
     - 0.0
     - 0.0
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3032
     mass:
     - 0.0
     - 0.0
-    - 0.0204
+    - 0.010197162129779282
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3033
     mass:
     - 0.0
     - 0.0
-    - 0.0204
+    - 0.010197162129779282
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3034
     mass:
     - 0.0
     - 0.0
-    - 0.0204
+    - 0.010197162129779282
     - 0.0
-    - 10.0
+    - 0.0
     - 0.0
   - node_tag: 3035
     mass:
@@ -730,7 +969,39 @@ model:
     - 0.0
     - 0.0
     - 0.0
-    - 10.0
+    - 0.0
+    - 0.0
+  - node_tag: 3036
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 3037
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 3038
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
+    - 0.0
+  - node_tag: 3039
+    mass:
+    - 0.0
+    - 0.0
+    - 0.010197162129779282
+    - 0.0
+    - 0.0
     - 0.0
   constraints:
   - kind: equalDOF
@@ -1260,28 +1531,56 @@ model:
       - 117
       - 121
       - 122
+      - 123
+      - 124
+      - 125
+      - 126
+      - 127
+      - 128
+      - 129
+      - 130
+      - 131
+      - 132
+      - 133
+      - 134
       - 3001
+      - 3006
       - 3002
+      - 3007
       - 3003
+      - 3008
       - 3004
+      - 3009
       - 3005
       - 3011
+      - 3016
       - 3012
+      - 3017
       - 3013
+      - 3018
       - 3014
+      - 3019
       - 3015
       - 3021
+      - 3026
       - 3022
+      - 3027
       - 3023
+      - 3028
       - 3024
+      - 3029
       - 3025
       - 3031
+      - 3036
       - 3032
+      - 3037
       - 3033
+      - 3038
       - 3034
+      - 3039
       - 3035
     steel_member_nodes:
-      nodes:
+      nodes: &id001
       - 1
       - 2
       - 3
@@ -1302,42 +1601,86 @@ model:
       - 117
       - 121
       - 122
+      - 123
+      - 124
+      - 125
+      - 126
+      - 127
+      - 128
+      - 129
+      - 130
+      - 131
+      - 132
+      - 133
+      - 134
     floor_centerline_nodes:
-      nodes:
+      nodes: &id002
       - 3001
+      - 3006
       - 3002
+      - 3007
       - 3003
+      - 3008
       - 3004
+      - 3009
       - 3005
       - 3011
+      - 3016
       - 3012
+      - 3017
       - 3013
+      - 3018
       - 3014
+      - 3019
       - 3015
       - 3021
+      - 3026
       - 3022
+      - 3027
       - 3023
+      - 3028
       - 3024
+      - 3029
       - 3025
       - 3031
+      - 3036
       - 3032
+      - 3037
       - 3033
+      - 3038
       - 3034
+      - 3039
       - 3035
     floor_mass_nodes:
       nodes:
+      - 3006
       - 3002
+      - 3007
       - 3003
+      - 3008
       - 3004
+      - 3009
+      - 3016
       - 3012
+      - 3017
       - 3013
+      - 3018
       - 3014
+      - 3019
+      - 3026
       - 3022
+      - 3027
       - 3023
+      - 3028
       - 3024
+      - 3029
+      - 3036
       - 3032
+      - 3037
       - 3033
+      - 3038
       - 3034
+      - 3039
     modal_output_nodes:
       nodes:
       - 1
@@ -1360,18 +1703,46 @@ model:
       - 117
       - 121
       - 122
+      - 123
+      - 124
+      - 125
+      - 126
+      - 127
+      - 128
+      - 129
+      - 130
+      - 131
+      - 132
+      - 133
+      - 134
+      - 3006
       - 3002
+      - 3007
       - 3003
+      - 3008
       - 3004
+      - 3009
+      - 3016
       - 3012
+      - 3017
       - 3013
+      - 3018
       - 3014
+      - 3019
+      - 3026
       - 3022
+      - 3027
       - 3023
+      - 3028
       - 3024
+      - 3029
+      - 3036
       - 3032
+      - 3037
       - 3033
+      - 3038
       - 3034
+      - 3039
     internal_connection_nodes:
       nodes:
       - 3001
@@ -1393,27 +1764,7 @@ model:
       - 9007
       - 9008
     perimeter_beams:
-      nodes:
-      - 1
-      - 2
-      - 3
-      - 4
-      - 101
-      - 102
-      - 103
-      - 104
-      - 105
-      - 106
-      - 107
-      - 111
-      - 112
-      - 113
-      - 114
-      - 115
-      - 116
-      - 117
-      - 121
-      - 122
+      nodes: *id001
       elements:
       - 1001
       - 1002
@@ -1435,49 +1786,57 @@ model:
       - 1018
       - 1019
       - 1020
+      - 1021
+      - 1022
+      - 1023
+      - 1024
+      - 1025
+      - 1026
+      - 1027
+      - 1028
+      - 1029
+      - 1030
+      - 1031
+      - 1032
     horizontal_braces:
       elements:
       - 2001
       - 2002
     floor_panel_center_beams:
-      nodes:
-      - 3001
-      - 3002
-      - 3003
-      - 3004
-      - 3005
-      - 3011
-      - 3012
-      - 3013
-      - 3014
-      - 3015
-      - 3021
-      - 3022
-      - 3023
-      - 3024
-      - 3025
-      - 3031
-      - 3032
-      - 3033
-      - 3034
-      - 3035
+      nodes: *id002
       elements:
       - 4001
       - 4002
       - 4003
       - 4004
+      - 4005
+      - 4006
+      - 4007
+      - 4008
       - 4011
       - 4012
       - 4013
       - 4014
+      - 4015
+      - 4016
+      - 4017
+      - 4018
       - 4021
       - 4022
       - 4023
       - 4024
+      - 4025
+      - 4026
+      - 4027
+      - 4028
       - 4031
       - 4032
       - 4033
       - 4034
+      - 4035
+      - 4036
+      - 4037
+      - 4038
     end_rotational_springs_Kr:
       nodes:
       - 3001
@@ -1521,6 +1880,26 @@ model:
       - 5103
       - 5201
       - 5202
+  mass_source_ledger:
+    schema_version: floor-mass-sources/1
+    units: SI
+    gravity_m_s2: 9.80665
+    sources:
+    - name: alc_panel_self_weight
+      category: self-weight
+      weight_N: 2800.0
+      mass_kg: 285.5215963407314
+      provenance: Test0202_properties.yaml materials.alc.unit_volume_weight
+    - name: steel_beam_self_weight_on_free_uz
+      category: self-weight
+      weight_N: 814.429
+      mass_kg: 83.04758885502834
+      provenance: Test0202_properties.yaml floor_vibration_alc mass policy
+    total_weight_N: 3614.429
+    total_mass_kg: 368.56918519576
+    nodal_distribution_hash: sha256:9f11e0ced6608c89ee8e78daee91c80b8c28d7ce9bdeaf81be1cb613129b8b91
+    nodal_distribution_hash_algorithm: canonical-json-sha256
+    nodal_distribution_hash_space: ordered node_tag and canonical vertical_mass_kg
   result_extraction:
     default_modal_node_group: modal_output_nodes
     exclude_node_groups:
@@ -1634,14 +2013,32 @@ model:
       generated_group: perimeter_beams
       generated_node_chain:
       - 1
+      - 123
+      - 124
+      - 125
       - 121
+      - 126
+      - 127
+      - 128
       - 2
       generated_element_chain:
       - 1017
       - 1018
-      node_stations:
+      - 1019
+      - 1020
+      - 1021
+      - 1022
+      - 1023
+      - 1024
+      node_stations: &id003
       - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
       - 0.5
+      - 0.625
+      - 0.75
+      - 0.875
       - 1.0
       element_orientation_to_source: 1
     - source_member_id: M002
@@ -1704,15 +2101,24 @@ model:
       generated_group: perimeter_beams
       generated_node_chain:
       - 3
+      - 129
+      - 130
+      - 131
       - 122
+      - 132
+      - 133
+      - 134
       - 4
       generated_element_chain:
-      - 1019
-      - 1020
-      node_stations:
-      - 0.0
-      - 0.5
-      - 1.0
+      - 1025
+      - 1026
+      - 1027
+      - 1028
+      - 1029
+      - 1030
+      - 1031
+      - 1032
+      node_stations: *id003
       element_orientation_to_source: 1
     - source_member_id: M004
       source_ref: json.members[3]
@@ -1817,21 +2223,24 @@ model:
       generated_group: floor_panel_center_beams
       generated_node_chain:
       - 3001
+      - 3006
       - 3002
+      - 3007
       - 3003
+      - 3008
       - 3004
+      - 3009
       - 3005
       generated_element_chain:
       - 4001
       - 4002
       - 4003
       - 4004
-      node_stations:
-      - 0.0
-      - 0.25
-      - 0.5
-      - 0.75
-      - 1.0
+      - 4005
+      - 4006
+      - 4007
+      - 4008
+      node_stations: *id003
       end_connections:
         i:
           internal_node: 3001
@@ -1867,21 +2276,24 @@ model:
       generated_group: floor_panel_center_beams
       generated_node_chain:
       - 3011
+      - 3016
       - 3012
+      - 3017
       - 3013
+      - 3018
       - 3014
+      - 3019
       - 3015
       generated_element_chain:
       - 4011
       - 4012
       - 4013
       - 4014
-      node_stations:
-      - 0.0
-      - 0.25
-      - 0.5
-      - 0.75
-      - 1.0
+      - 4015
+      - 4016
+      - 4017
+      - 4018
+      node_stations: *id003
       end_connections:
         i:
           internal_node: 3011
@@ -1918,21 +2330,24 @@ model:
       generated_group: floor_panel_center_beams
       generated_node_chain:
       - 3021
+      - 3026
       - 3022
+      - 3027
       - 3023
+      - 3028
       - 3024
+      - 3029
       - 3025
       generated_element_chain:
       - 4021
       - 4022
       - 4023
       - 4024
-      node_stations:
-      - 0.0
-      - 0.25
-      - 0.5
-      - 0.75
-      - 1.0
+      - 4025
+      - 4026
+      - 4027
+      - 4028
+      node_stations: *id003
       end_connections:
         i:
           internal_node: 3021
@@ -1969,21 +2384,24 @@ model:
       generated_group: floor_panel_center_beams
       generated_node_chain:
       - 3031
+      - 3036
       - 3032
+      - 3037
       - 3033
+      - 3038
       - 3034
+      - 3039
       - 3035
       generated_element_chain:
       - 4031
       - 4032
       - 4033
       - 4034
-      node_stations:
-      - 0.0
-      - 0.25
-      - 0.5
-      - 0.75
-      - 1.0
+      - 4035
+      - 4036
+      - 4037
+      - 4038
+      node_stations: *id003
       end_connections:
         i:
           internal_node: 3031
@@ -2181,7 +2599,7 @@ model:
   - type: elasticTimoshenkoBeam3D
     tag: 1017
     node_i: 1
-    node_j: 121
+    node_j: 123
     material_ref: steel
     section_ref: B
     vecxz:
@@ -2190,8 +2608,8 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 1018
-    node_i: 121
-    node_j: 2
+    node_i: 123
+    node_j: 124
     material_ref: steel
     section_ref: B
     vecxz:
@@ -2200,8 +2618,8 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 1019
-    node_i: 3
-    node_j: 122
+    node_i: 124
+    node_j: 125
     material_ref: steel
     section_ref: B
     vecxz:
@@ -2210,7 +2628,127 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 1020
+    node_i: 125
+    node_j: 121
+    material_ref: steel
+    section_ref: B
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 1021
+    node_i: 121
+    node_j: 126
+    material_ref: steel
+    section_ref: B
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 1022
+    node_i: 126
+    node_j: 127
+    material_ref: steel
+    section_ref: B
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 1023
+    node_i: 127
+    node_j: 128
+    material_ref: steel
+    section_ref: B
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 1024
+    node_i: 128
+    node_j: 2
+    material_ref: steel
+    section_ref: B
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 1025
+    node_i: 3
+    node_j: 129
+    material_ref: steel
+    section_ref: B
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 1026
+    node_i: 129
+    node_j: 130
+    material_ref: steel
+    section_ref: B
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 1027
+    node_i: 130
+    node_j: 131
+    material_ref: steel
+    section_ref: B
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 1028
+    node_i: 131
+    node_j: 122
+    material_ref: steel
+    section_ref: B
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 1029
     node_i: 122
+    node_j: 132
+    material_ref: steel
+    section_ref: B
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 1030
+    node_i: 132
+    node_j: 133
+    material_ref: steel
+    section_ref: B
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 1031
+    node_i: 133
+    node_j: 134
+    material_ref: steel
+    section_ref: B
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 1032
+    node_i: 134
     node_j: 4
     material_ref: steel
     section_ref: B
@@ -2235,7 +2773,7 @@ model:
   - type: elasticTimoshenkoBeam3D
     tag: 4001
     node_i: 3001
-    node_j: 3002
+    node_j: 3006
     material_ref: alc
     section_ref: ALC_S_center_beam
     vecxz:
@@ -2244,8 +2782,8 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 4002
-    node_i: 3002
-    node_j: 3003
+    node_i: 3006
+    node_j: 3002
     material_ref: alc
     section_ref: ALC_S_center_beam
     vecxz:
@@ -2254,8 +2792,8 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 4003
-    node_i: 3003
-    node_j: 3004
+    node_i: 3002
+    node_j: 3007
     material_ref: alc
     section_ref: ALC_S_center_beam
     vecxz:
@@ -2264,7 +2802,47 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 4004
+    node_i: 3007
+    node_j: 3003
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4005
+    node_i: 3003
+    node_j: 3008
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4006
+    node_i: 3008
+    node_j: 3004
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4007
     node_i: 3004
+    node_j: 3009
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4008
+    node_i: 3009
     node_j: 3005
     material_ref: alc
     section_ref: ALC_S_center_beam
@@ -2275,7 +2853,7 @@ model:
   - type: elasticTimoshenkoBeam3D
     tag: 4011
     node_i: 3011
-    node_j: 3012
+    node_j: 3016
     material_ref: alc
     section_ref: ALC_S_center_beam
     vecxz:
@@ -2284,8 +2862,8 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 4012
-    node_i: 3012
-    node_j: 3013
+    node_i: 3016
+    node_j: 3012
     material_ref: alc
     section_ref: ALC_S_center_beam
     vecxz:
@@ -2294,8 +2872,8 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 4013
-    node_i: 3013
-    node_j: 3014
+    node_i: 3012
+    node_j: 3017
     material_ref: alc
     section_ref: ALC_S_center_beam
     vecxz:
@@ -2304,7 +2882,47 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 4014
+    node_i: 3017
+    node_j: 3013
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4015
+    node_i: 3013
+    node_j: 3018
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4016
+    node_i: 3018
+    node_j: 3014
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4017
     node_i: 3014
+    node_j: 3019
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4018
+    node_i: 3019
     node_j: 3015
     material_ref: alc
     section_ref: ALC_S_center_beam
@@ -2315,7 +2933,7 @@ model:
   - type: elasticTimoshenkoBeam3D
     tag: 4021
     node_i: 3021
-    node_j: 3022
+    node_j: 3026
     material_ref: alc
     section_ref: ALC_S_center_beam
     vecxz:
@@ -2324,8 +2942,8 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 4022
-    node_i: 3022
-    node_j: 3023
+    node_i: 3026
+    node_j: 3022
     material_ref: alc
     section_ref: ALC_S_center_beam
     vecxz:
@@ -2334,8 +2952,8 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 4023
-    node_i: 3023
-    node_j: 3024
+    node_i: 3022
+    node_j: 3027
     material_ref: alc
     section_ref: ALC_S_center_beam
     vecxz:
@@ -2344,7 +2962,47 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 4024
+    node_i: 3027
+    node_j: 3023
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4025
+    node_i: 3023
+    node_j: 3028
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4026
+    node_i: 3028
+    node_j: 3024
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4027
     node_i: 3024
+    node_j: 3029
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4028
+    node_i: 3029
     node_j: 3025
     material_ref: alc
     section_ref: ALC_S_center_beam
@@ -2355,7 +3013,7 @@ model:
   - type: elasticTimoshenkoBeam3D
     tag: 4031
     node_i: 3031
-    node_j: 3032
+    node_j: 3036
     material_ref: alc
     section_ref: ALC_S_center_beam
     vecxz:
@@ -2364,8 +3022,8 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 4032
-    node_i: 3032
-    node_j: 3033
+    node_i: 3036
+    node_j: 3032
     material_ref: alc
     section_ref: ALC_S_center_beam
     vecxz:
@@ -2374,8 +3032,8 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 4033
-    node_i: 3033
-    node_j: 3034
+    node_i: 3032
+    node_j: 3037
     material_ref: alc
     section_ref: ALC_S_center_beam
     vecxz:
@@ -2384,7 +3042,47 @@ model:
     - 1.0
   - type: elasticTimoshenkoBeam3D
     tag: 4034
+    node_i: 3037
+    node_j: 3033
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4035
+    node_i: 3033
+    node_j: 3038
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4036
+    node_i: 3038
+    node_j: 3034
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4037
     node_i: 3034
+    node_j: 3039
+    material_ref: alc
+    section_ref: ALC_S_center_beam
+    vecxz:
+    - 0.0
+    - 0.0
+    - 1.0
+  - type: elasticTimoshenkoBeam3D
+    tag: 4038
+    node_i: 3039
     node_j: 3035
     material_ref: alc
     section_ref: ALC_S_center_beam
@@ -2397,9 +3095,9 @@ model:
     node_i: 3001
     node_j: 9001
     dir:
-    - ry
+    - rz
     stiffness:
-    - 200000000.0
+    - 1000000000.0
     orient_x:
     - 0.0
     - 1.0
@@ -2417,9 +3115,9 @@ model:
     node_i: 3005
     node_j: 9002
     dir:
-    - ry
+    - rz
     stiffness:
-    - 200000000.0
+    - 1000000000.0
     orient_x:
     - 0.0
     - 1.0
@@ -2437,9 +3135,9 @@ model:
     node_i: 3011
     node_j: 9003
     dir:
-    - ry
+    - rz
     stiffness:
-    - 200000000.0
+    - 1000000000.0
     orient_x:
     - 0.0
     - 1.0
@@ -2457,9 +3155,9 @@ model:
     node_i: 3015
     node_j: 9004
     dir:
-    - ry
+    - rz
     stiffness:
-    - 200000000.0
+    - 1000000000.0
     orient_x:
     - 0.0
     - 1.0
@@ -2477,9 +3175,9 @@ model:
     node_i: 3021
     node_j: 9005
     dir:
-    - ry
+    - rz
     stiffness:
-    - 200000000.0
+    - 1000000000.0
     orient_x:
     - 0.0
     - 1.0
@@ -2497,9 +3195,9 @@ model:
     node_i: 3025
     node_j: 9006
     dir:
-    - ry
+    - rz
     stiffness:
-    - 200000000.0
+    - 1000000000.0
     orient_x:
     - 0.0
     - 1.0
@@ -2517,9 +3215,9 @@ model:
     node_i: 3031
     node_j: 9007
     dir:
-    - ry
+    - rz
     stiffness:
-    - 200000000.0
+    - 1000000000.0
     orient_x:
     - 0.0
     - 1.0
@@ -2537,9 +3235,9 @@ model:
     node_i: 3035
     node_j: 9008
     dir:
-    - ry
+    - rz
     stiffness:
-    - 200000000.0
+    - 1000000000.0
     orient_x:
     - 0.0
     - 1.0
@@ -2557,9 +3255,9 @@ model:
     node_i: 3003
     node_j: 3013
     dir:
-    - uz
+    - uy
     stiffness:
-    - 10000.0
+    - 1500.0
     orient_x:
     - 0.0
     - 1.0
@@ -2577,9 +3275,9 @@ model:
     node_i: 3013
     node_j: 3023
     dir:
-    - uz
+    - uy
     stiffness:
-    - 10000.0
+    - 1500.0
     orient_x:
     - 0.0
     - 1.0
@@ -2597,9 +3295,9 @@ model:
     node_i: 3023
     node_j: 3033
     dir:
-    - uz
+    - uy
     stiffness:
-    - 10000.0
+    - 1500.0
     orient_x:
     - 0.0
     - 1.0
@@ -2617,9 +3315,9 @@ model:
     node_i: 3003
     node_j: 121
     dir:
-    - uz
+    - uy
     stiffness:
-    - 20000.0
+    - 2000.0
     orient_x:
     - 0.0
     - 1.0
@@ -2637,9 +3335,9 @@ model:
     node_i: 3033
     node_j: 122
     dir:
-    - uz
+    - uy
     stiffness:
-    - 20000.0
+    - 2000.0
     orient_x:
     - 0.0
     - 1.0
@@ -2661,16 +3359,16 @@ model:
     alc:
       type: ElasticMaterial
       tag: 2
-      elastic_modulus: 1800.0
+      elastic_modulus: 2100.0
       shear_modulus: 750.0
   sections:
     B:
-      area: 20000.0
-      inertia_y: 66700000.0
-      inertia_z: 16700000.0
-      torsion_constant: 20000000.0
-      shear_area_y: 16000.0
-      shear_area_z: 16000.0
+      area: 1511.0
+      inertia_y: 10500000.0
+      inertia_z: 751000.0
+      torsion_constant: 105.0
+      shear_area_y: 1800.0
+      shear_area_z: 611.2
     ALC_S_center_beam:
       area: 50000.0
       inertia_y: 41700000.0

@@ -35,7 +35,7 @@ export const LINE_WIDTH = { undeformed: 2, deformed: 3 };
 export const FRAME_STEPS = 60;
 
 /**
- * 居住性評価（歩行加振）用の振動数帯 [Hz]。
+ * 歩行共振帯スクリーニング用の振動数帯 [Hz]。
  * 歩行ペース 1.5〜2.5Hz とその低次倍音を「共振リスク帯」とする。
  * 一次スクリーニング用途（AIJ 居住性評価指針 / ISO 10137 等を参考にした簡易判定）。
  */
@@ -66,12 +66,14 @@ export const THEME = {
     clear: 0xffffff,
     undeformed: 0x888888,
     deformed: 0xff4444,
+    response: 0x1976d2,
     grid: 0xcccccc,
   },
   dark: {
     clear: 0x1a1a2e,
     undeformed: 0xaaaaaa,
     deformed: 0xff6666,
+    response: 0x64b5f6,
     grid: 0x444466,
   },
 };
@@ -99,6 +101,17 @@ export const DOM_IDS = {
   freqDisplay: 'freq-display',
   periodDisplay: 'period-display',
   habitabilityDisplay: 'habitability-display',
+  modalControls: 'modal-controls',
+  responseInfo: 'response-info',
+  responseQuantity: 'response-quantity',
+  responseUnit: 'response-unit',
+  responseNormalizationRow: 'response-normalization-row',
+  chkResponseNormalization: 'chk-response-normalization',
+  displayMeaning: 'display-meaning',
+  responseLegend: 'response-legend',
+  responseLegendTitle: 'response-legend-title',
+  responseLegendMin: 'response-legend-min',
+  responseLegendMax: 'response-legend-max',
   timeDisplay: 'time-display',
   timeSlider: 'time-slider',
   btnStepBack: 'btn-step-back',
