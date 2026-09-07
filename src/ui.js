@@ -8,13 +8,20 @@
  */
 
 import { t, setLang, getLang, applyTranslations } from './i18n.js';
-import { DOM_IDS, SCALE, SPEED, STORAGE_KEYS, FRAME_STEPS, CAMERA_PRESETS } from './constants.js';
+import { DOM_IDS, SCALE, SPEED, STORAGE_KEYS, CAMERA_PRESETS } from './constants.js';
 import { assessFrequency, RISK } from './assessment.js';
 import { buildDisplayExport } from './export.js';
+import { playbackAction } from './playback.js';
+import { downloadBlob } from './downloads.js';
 
 /** getElementById の短縮 */
 const $ = (id) => document.getElementById(id);
 const playbackState = new WeakMap();
+const listeners = new Set();
+export function disposeUI() {
+  for (const remove of listeners) remove();
+  listeners.clear();
+}
 
 /**
  * UI 要素のイベントリスナーを設定する。
@@ -25,7 +32,8 @@ const playbackState = new WeakMap();
  * @param {object}              params.floorData        parseFloorData の戻り値
  * @param {(jsonString:string)=>void} params.onFileLoad  ファイル読込コールバック
  */
-export function setupUI({ viewer, animController, floorData, onFileLoad }) {
+export function setupUI({ viewer, animController, floorData, beforeCapture = () => {} }) {
+  disposeUI();
   const isResponse = animController.getDataKind() === 'response';
 
   // 表示切替は複数セクション（再生/停止・モード変更）から参照されるため先に定義する
@@ -66,14 +74,15 @@ export function setupUI({ viewer, animController, floorData, onFileLoad }) {
   setupLineStyleControls(viewer);
   setupThemeControl(viewer);
   setupLangControl(animController, refreshModeInfo);
-  setupPngControl(viewer, animController, floorData);
+  setupPngControl(viewer, animController, floorData, beforeCapture);
   setupExportControls(animController, floorData);
-  setupFileLoad(onFileLoad);
+
   setupKeyboardShortcuts(animController, applyVisibility);
 
   // 初期表示
   refreshModeInfo();
   updateTimeDisplay(animController.getTime());
+  replaceListener(document.getElementById('modeshape-section'), 'toggle', () => updateModeShapeTable(animController, true), '_onTableToggle');
   const helpContent = $(DOM_IDS.helpContent);
   if (helpContent) helpContent.textContent = t('helpContent');
 }
@@ -142,46 +151,20 @@ function setupSliders(animController) {
 /** タイムライン（スクラブ＋コマ送り） */
 function setupTimeline(animController, applyVisibility) {
   const slider = $(DOM_IDS.timeSlider);
-  const btnBack = $(DOM_IDS.btnStepBack);
-  const btnFwd  = $(DOM_IDS.btnStepFwd);
-
-  const onScrub = () => {
-    animController.stop();
-    animController.setTime(parseFloat(slider.value));
-    updateTimeDisplay(animController.getTime());
-    if (animController.getDataKind() === 'response') {
-      updateResponseLegend(animController);
-      updateModeShapeTable(animController, true);
-    }
-    // 停止状態に戻るため、節点ラベル等の表示を再評価する
+  const run = (action, value) => {
+    playbackAction(animController, action, value);
+    syncPlayback(animController);
     applyVisibility();
   };
-  replaceListener(slider, 'input', onScrub, '_onScrub');
+  replaceListener(slider, 'input', () => run('seek', Number(slider.value)), '_onScrub');
+  replaceListener($(DOM_IDS.btnStepBack), 'click', () => run('step', -1), '_onStepBack');
+  replaceListener($(DOM_IDS.btnStepFwd), 'click', () => run('step', 1), '_onStepFwd');
+}
 
-  const step = (dir) => {
-    if (animController.getDataKind() === 'response') {
-      animController.stepResponseFrame(dir);
-      slider.value = String(animController.getTime());
-      updateTimeDisplay(animController.getTime());
-      updateResponseLegend(animController);
-      updateModeShapeTable(animController, true);
-      applyVisibility();
-      return;
-    }
-    const period = animController.getPeriod();
-    if (period <= 0) return;
-    animController.stop();
-    const delta = (period / FRAME_STEPS) * dir;
-    let nt = animController.getTime() + delta;
-    // 1周期内に正規化（負値も周期内へ）
-    nt = ((nt % period) + period) % period;
-    animController.setTime(nt);
-    slider.value = String(nt);
-    updateTimeDisplay(animController.getTime());
-    applyVisibility();
-  };
-  replaceListener(btnBack, 'click', () => step(-1), '_onStepBack');
-  replaceListener(btnFwd, 'click', () => step(1), '_onStepFwd');
+function syncPlayback(controller) {
+  resetTimeline(controller);
+  updateTimeDisplay(controller.getTime());
+  updateModeShapeTable(controller, true);
 }
 
 /** 応答archiveの表示正規化ON/OFF。OFF時は倍率を無効化し実値を保持する。 */
@@ -233,62 +216,16 @@ function setupExportControls(animController, floorData) {
 
 /** キーボードショートカット（Space=再生/停止, ←/→=コマ送り, R=リセット） */
 function setupKeyboardShortcuts(animController, applyVisibility) {
-  const slider = $(DOM_IDS.timeSlider);
-
-  const stepFrame = (dir) => {
-    if (animController.getDataKind() === 'response') {
-      animController.stepResponseFrame(dir);
-      if (slider) slider.value = String(animController.getTime());
-      updateTimeDisplay(animController.getTime());
-      updateResponseLegend(animController);
-      updateModeShapeTable(animController, true);
-      applyVisibility();
-      return;
-    }
-    const period = animController.getPeriod();
-    if (period <= 0) return;
-    animController.stop();
-    let nt = animController.getTime() + (period / FRAME_STEPS) * dir;
-    nt = ((nt % period) + period) % period;
-    animController.setTime(nt);
-    if (slider) slider.value = String(nt);
-    updateTimeDisplay(animController.getTime());
+  const onKeydown = (e) => {
+    if (document.body.dataset.recording === 'true') return;
+    if (e.target?.closest?.('input, select, textarea, button, [contenteditable="true"]')) return;
+    const actions = { ' ': ['toggle'], ArrowRight: ['step', 1], ArrowLeft: ['step', -1], r: ['reset'], R: ['reset'] };
+    if (!actions[e.key] || e.repeat) return;
+    e.preventDefault();
+    playbackAction(animController, ...actions[e.key]);
+    syncPlayback(animController);
     applyVisibility();
   };
-
-  const onKeydown = (e) => {
-    // 入力要素にフォーカスがある場合はショートカット無効
-    const tag = (e.target && e.target.tagName) || '';
-    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-
-    switch (e.key) {
-      case ' ':
-        e.preventDefault();
-        if (animController.isPlaying()) animController.stop();
-        else animController.play();
-        applyVisibility();
-        break;
-      case 'ArrowRight':
-        e.preventDefault();
-        stepFrame(1);
-        break;
-      case 'ArrowLeft':
-        e.preventDefault();
-        stepFrame(-1);
-        break;
-      case 'r':
-      case 'R':
-        animController.stop();
-        animController.setTime(0);
-        if (slider) slider.value = '0';
-        updateTimeDisplay(animController.getTime());
-        applyVisibility();
-        break;
-      default:
-        break;
-    }
-  };
-  // document に対しても多重登録を防ぐ
   replaceListener(document, 'keydown', onKeydown, '_onFloorKeydown');
 }
 
@@ -341,7 +278,7 @@ function setupThemeControl(viewer) {
     html.setAttribute('data-theme', isDark ? 'dark' : '');
     viewer.setThemeColors(isDark);
     updateThemeButtonLabel();
-    localStorage.setItem(STORAGE_KEYS.theme, isDark ? 'dark' : 'light');
+    try { localStorage.setItem(STORAGE_KEYS.theme, isDark ? 'dark' : 'light'); } catch { /* storage unavailable */ }
   };
   replaceListener(btnTheme, 'click', onThemeToggle, '_onThemeToggle');
   updateThemeButtonLabel();
@@ -369,7 +306,7 @@ function setupLangControl(animController, refreshModeInfo) {
 }
 
 /** PNG 保存ボタン */
-function setupPngControl(viewer, animController, floorData) {
+function setupPngControl(viewer, animController, floorData, beforeCapture) {
   const btnDownload = $(DOM_IDS.btnDownload);
   const onDownload = async () => {
     if (animController.isPlaying()) {
@@ -378,85 +315,15 @@ function setupPngControl(viewer, animController, floorData) {
     }
     const filename = buildPngFilename(floorData, animController);
     try {
-      await viewer.savePNG(filename);
+      beforeCapture();
+      const width = Number(document.getElementById('capture-size')?.value) || 1600;
+      await viewer.savePNG(filename, { width, height: Math.round(width * 0.625), background: document.getElementById('capture-background')?.value || undefined });
     } catch (err) {
       console.error('PNG save failed:', err);
       alert(t('alertPngFail', { msg: err.message }));
     }
   };
   replaceListener(btnDownload, 'click', onDownload, '_onDownload');
-}
-
-/** ファイル読込（hidden input + カスタムボタン） */
-function setupFileLoad(onFileLoad) {
-  const fileInput = $(DOM_IDS.fileInput);
-  const btnSelectFile = $(DOM_IDS.btnSelectFile);
-  const fileNameDisplay = $(DOM_IDS.fileNameDisplay);
-
-  // loadData() は読込成功後に setupUI() を再実行する。選択済みの
-  // ファイル名をその再初期化で「選択なし」へ戻さない。
-  if (!fileNameDisplay._hasFile) {
-    fileNameDisplay.textContent = t('fileNameNone');
-    fileNameDisplay._hasFile = false;
-  }
-
-  const onSelectFile = () => { fileInput.click(); };
-  replaceListener(btnSelectFile, 'click', onSelectFile, '_onSelectFile');
-
-  const showFileNames = (files) => {
-    const names = files.map((file) => file.name);
-    fileNameDisplay.textContent = names.length <= 2
-      ? names.join(', ')
-      : `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
-    fileNameDisplay._hasFile = true;
-  };
-
-  const readTextFile = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => { resolve({ name: file.name, text: reader.result }); };
-    reader.onerror = () => { reject(reader.error); };
-    reader.readAsText(file);
-  });
-
-  const readFiles = async (fileList) => {
-    const files = Array.from(fileList ?? []);
-    if (files.length === 0) return;
-    showFileNames(files);
-    try {
-      onFileLoad(await Promise.all(files.map(readTextFile)));
-    } catch (err) {
-      alert(t('alertFileError', { msg: err.message }));
-    }
-  };
-
-  const onFileChange = (e) => {
-    readFiles(e.target.files);
-
-    // 同じファイルを再選択できるようにリセット
-    fileInput.value = '';
-  };
-  replaceListener(fileInput, 'change', onFileChange, '_onFileChange');
-
-  // ---- ドラッグ&ドロップ読込 ----
-  const overlay = $(DOM_IDS.dropOverlay);
-
-  const onDragOver = (e) => {
-    e.preventDefault();
-    if (overlay) overlay.classList.add('active');
-  };
-  const onDragLeave = (e) => {
-    // ウィンドウ外/オーバーレイ離脱時のみ消す
-    if (e.relatedTarget === null && overlay) overlay.classList.remove('active');
-  };
-  const onDrop = (e) => {
-    e.preventDefault();
-    if (overlay) overlay.classList.remove('active');
-    const files = e.dataTransfer && e.dataTransfer.files;
-    readFiles(files);
-  };
-  replaceListener(window, 'dragover', onDragOver, '_onDragOver');
-  replaceListener(window, 'dragleave', onDragLeave, '_onDragLeave');
-  replaceListener(window, 'drop', onDrop, '_onDrop');
 }
 
 // ─── 表示更新 ───────────────────────────────────────────────────────────────
@@ -480,6 +347,10 @@ export function updateTimeDisplay(time) {
 export function updatePlaybackDisplays(animController, viewer) {
   const time = animController.getTime();
   const playing = animController.isPlaying();
+  if (document.body.dataset.recording !== 'true') {
+    $(DOM_IDS.btnPlay).disabled = playing;
+    $(DOM_IDS.btnStop).disabled = !playing;
+  }
   const wasPlaying = playbackState.get(animController) ?? playing;
   if (viewer && wasPlaying && !playing) {
     viewer.setVisibility({ labels: Boolean($(DOM_IDS.chkNodeIds)?.checked) });
@@ -492,6 +363,7 @@ export function updatePlaybackDisplays(animController, viewer) {
     if (slider) slider.value = String(time);
     updateResponseLegend(animController);
     updateModeShapeTable(animController);
+    if (viewer) updateHighlight(viewer, animController);
     return;
   }
   // 再生中のみタイムラインを追従（ユーザーのドラッグと競合させない）
@@ -560,7 +432,7 @@ function resetTimeline(animController) {
     slider.max = String(period);
     slider.step = String(period / 1000);
   }
-  slider.value = '0';
+  slider.value = String(period > 0 ? animController.getTime() % period : animController.getTime());
 }
 
 /** 現モードのモード形（節点ごとの正規化 uz）テーブルを再構築する。 */
@@ -569,6 +441,7 @@ function updateModeShapeTable(animController, force = false) {
   if (!container) return;
 
   const isResponse = animController.getDataKind() === 'response';
+  if (!force && !document.getElementById('modeshape-section')?.open) return;
   if (isResponse) {
     const time = animController.getTime();
     if (!force && container._responseTime === time) return;
@@ -580,7 +453,9 @@ function updateModeShapeTable(animController, force = false) {
   const nodeIds = animController.getNodeIds();
   const maxNode = animController.getMaxNode();
 
-  const rows = nodeIds.map((id) => {
+  const page = Math.min(container._page || 0, Math.max(0, Math.ceil(nodeIds.length / 200) - 1));
+  const pageIds = nodeIds.slice(page * 200, (page + 1) * 200);
+  const rows = pageIds.map((id) => {
     const value = isResponse
       ? animController.getResponseValue(id)
       : animController.getNormalizedUz(id);
@@ -595,6 +470,17 @@ function updateModeShapeTable(animController, force = false) {
     `<table class="modeshape"><thead><tr>` +
     `<th>${t('thNode')}</th><th>${t(isResponse ? 'thResponseValue' : 'thUz')}</th>` +
     `</tr></thead><tbody>${rows}</tbody></table>`;
+  if (nodeIds.length > 200) {
+    for (const [symbol, direction] of [['←', -1], ['→', 1]]) {
+      const button = document.createElement('button');
+      button.textContent = symbol;
+      button.type = 'button';
+      button.disabled = direction < 0 ? page === 0 : (page + 1) * 200 >= nodeIds.length;
+      button.onclick = () => { container._page = page + direction; updateModeShapeTable(animController, true); };
+      container.appendChild(button);
+    }
+    container.appendChild(document.createTextNode(` ${page + 1} / ${Math.ceil(nodeIds.length / 200)}`));
+  }
 }
 
 function updateDataKindDisplays(animController) {
@@ -739,22 +625,6 @@ function exportDisplacement(animController, floorData, format) {
   downloadBlob(content, `${base}.${ext}`, mime);
 }
 
-/** 文字列を Blob としてダウンロードする。 */
-function downloadBlob(content, filename, mime) {
-  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  try {
-    link.click();
-  } finally {
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }
-}
-
 /** 出力ファイル名のベース（拡張子なし）を組み立てる。 */
 function buildExportBasename(floorData, mode, time, dataKind = 'mode') {
   if (dataKind === 'response') {
@@ -778,6 +648,7 @@ function replaceListener(el, event, handler, slotKey) {
   }
   el[slotKey] = handler;
   el.addEventListener(event, handler);
+  listeners.add(() => { el.removeEventListener(event, handler); if (el[slotKey] === handler) delete el[slotKey]; });
 }
 
 /**

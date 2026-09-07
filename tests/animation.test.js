@@ -214,3 +214,47 @@ describe('getNormalizedUz', () => {
     expect(c.getNormalizedUz(1, 99)).toBe(0);
   });
 });
+
+describe('observation playback and finite state', () => {
+  it.each([1, 2])('uses four wall seconds per cycle for mode %s without changing its formula', (mode) => {
+    const c = new AnimationController(floorData());
+    c.setMode(mode);
+    c.setSpeed(2);
+    c.setObservationPeriod(4);
+    c.play();
+    c.update(1);
+    expect(c.getTime()).toBeCloseTo(c.getPeriod() / 4, 12);
+    expect(c.getDisplacedZ(3)).toBeCloseTo(0.6 * c.getNormalizedUz(3), 12);
+    const time = c.getTime();
+    const z = c.getDisplacedZ(3);
+    c.setObservationPeriod(null);
+    expect(c.getTime()).toBe(time);
+    expect(c.getDisplacedZ(3)).toBe(z);
+    c.update(0.1);
+    expect(c.getTime()).toBeCloseTo(time + 0.2, 12);
+  });
+
+  it('preserves state on nonfinite values and invalid observation periods', () => {
+    const c = new AnimationController(floorData());
+    c.setTime(0.1);
+    c.setObservationPeriod(2);
+    c.play();
+    for (const value of [NaN, Infinity, -Infinity]) {
+      c.setTime(value);
+      c.setScale(value);
+      c.setSpeed(value);
+      c.setObservationPeriod(value);
+      c.setMode(value);
+      c.update(value);
+    }
+    c.setObservationPeriod(0);
+    c.setObservationPeriod(-1);
+    c.update(-1);
+    expect(c.getTime()).toBe(0.1);
+    expect(c.getScale()).toBe(1);
+    expect(c.getSpeed()).toBe(1);
+    expect(c.getObservationPeriod()).toBe(2);
+    expect(c.getCurrentMode()).toBe(1);
+    expect(Number.isFinite(c.getDisplacedZ(3))).toBe(true);
+  });
+});

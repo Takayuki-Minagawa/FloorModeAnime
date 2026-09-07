@@ -663,3 +663,24 @@ table.modeshape th {
     max-height: 120px;
   }
 }
+
+/* Analysis tools use the same theme and a shared camera for case comparisons. */
+#canvas-container, #comparison-container { min-width: 0; }
+#comparison-container { flex: 1; position: relative; overflow: hidden; border-left: 1px solid var(--border-color); }
+#controls details { padding: 12px 0; border-top: 1px solid var(--border-color); }
+#controls details > :not(summary) { margin-top: 8px; }
+#controls details label { display: block; }
+#controls output { display: block; overflow-wrap: anywhere; }
+#tools-error { color: var(--msg-error-text); }
+#history-chart { display: block; width: 100%; background: var(--bg-input); color: var(--text-primary); cursor: crosshair; border: 1px solid var(--border-color); }
+#history-chart text { fill: currentColor; font: 12px sans-serif; }
+#history-chart .history-line { stroke: var(--accent); fill: none; stroke-width: 2; }
+#history-chart .history-cursor { stroke: #d55; stroke-width: 2; }
+#peak-values { font-variant-numeric: tabular-nums; }
+#mac-table { max-height: 260px; overflow: auto; }
+#mac-table table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+#mac-table td, #mac-table th { padding: 4px; border-bottom: 1px solid var(--border-color); }
+#mac-table button { padding: 2px 5px; }
+button:disabled, input:disabled, select:disabled { opacity: .55; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 760px) { #comparison-container { min-height: 220px; } }

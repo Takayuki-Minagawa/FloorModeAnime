@@ -1,20 +1,12 @@
+import { camelize } from './data/keys.js';
+
 /** Parser for the versioned physical-response viewer schema. */
 
 export const RESPONSE_SCHEMA_VERSION = 'floor-response-archive/1';
 
 const strictNumber = (value) => typeof value === 'number' ? value : Number.NaN;
 
-const toCamelCase = (key) => key.replace(/[_-]([a-z0-9])/gi, (_, ch) => ch.toUpperCase());
 
-function camelize(value) {
-  if (Array.isArray(value)) return value.map(camelize);
-  if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, child]) => [toCamelCase(key), camelize(child)]),
-    );
-  }
-  return value;
-}
 
 export function isResponseArchive(value) {
   return value?.schema_version === RESPONSE_SCHEMA_VERSION

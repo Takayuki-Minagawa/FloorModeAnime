@@ -1,10 +1,8 @@
 name: CI
 
+# Manual checks only: development is verified locally to conserve Actions minutes.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   check:

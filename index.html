@@ -23,6 +23,8 @@
       </div>
     </div>
 
+    <div id="comparison-container" hidden><span id="comparison-caption" class="display-meaning"></span></div>
+
     <div id="controls">
       <div class="control-group control-row">
         <h2 class="panel-title" data-i18n="panelTitle">コントロール</h2>
@@ -40,6 +42,8 @@
         <span class="file-hint" data-i18n="fileInputHint">calc YAML・modal result JSON・任意のmanifest、または応答archive JSONを読み込みます</span>
       </div>
 
+      <div class="control-group" aria-live="polite"><span id="load-status" data-i18n="loadReading"></span><button id="cancel-load" type="button" data-i18n="cancel" hidden>取消</button></div>
+
       <!-- モード選択 -->
       <div id="modal-controls" class="control-group">
         <label for="mode-select" data-i18n="labelMode">モード</label>
@@ -52,6 +56,11 @@
         <span id="habitability-display" class="habitability"></span>
       </div>
 
+      <div id="observation-controls" class="control-group">
+        <label for="observation-period" data-i18n="observation">モード観察用再生</label>
+        <select id="observation-period"><option value="0" data-i18n="normalPlayback">通常速度</option><option value="2" data-i18n="cycle2">1周期を2秒</option><option value="4" data-i18n="cycle4">1周期を4秒</option></select>
+        <span id="observation-status" class="file-hint"></span>
+      </div>
       <!-- 物理応答 archive 情報 -->
       <div id="response-info" class="control-group" hidden>
         <label data-i18n="labelResponse">物理応答</label>
@@ -165,6 +174,42 @@
         <div id="modeshape-table"></div>
       </details>
 
+      <details id="analysis-section" open>
+        <summary data-i18n="inspectNode">節点の確認</summary>
+        <label for="selected-node" data-i18n="nodeId">節点ID</label>
+        <input id="selected-node" type="number" min="1" step="1" list="node-options"><datalist id="node-options"></datalist>
+        <output id="selected-value"></output>
+        <div id="history-controls" hidden>
+          <svg id="history-chart" viewBox="0 0 600 240" role="img" tabindex="0" aria-label="Response history"></svg>
+          <div id="peak-values"></div>
+          <div class="control-row"><button id="jump-peak" type="button" data-i18n="jumpPeak">節点ピークへ</button><button id="jump-global" type="button" data-i18n="jumpGlobal">全体ピークへ</button></div>
+          <button id="history-csv" type="button" data-i18n="historyCsv">節点時刻歴CSV</button>
+          <label><input id="show-envelope" type="checkbox"> <span data-i18n="envelope">最大絶対値包絡（時刻混在）</span></label>
+        </div>
+      </details>
+      <details id="compare-section">
+        <summary data-i18n="compare">ケース比較・鉛直MAC</summary>
+        <input id="compare-files" type="file" accept=".json,.yaml,.yml" multiple>
+        <label for="compare-mode" data-i18n="compareMode">比較モード</label><select id="compare-mode"></select>
+        <label><input id="compare-sign" type="checkbox"> <span data-i18n="invertSign">比較形状の符号を反転</span></label>
+        <button id="clear-compare" type="button" data-i18n="clearCompare">比較を終了</button>
+        <span class="file-hint" data-i18n="macHint">同一位相・鉛直成分のみ。MACは合否判定ではありません。</span>
+        <output id="compare-status" aria-live="polite"></output><div id="mac-table"></div>
+      </details>
+      <details id="capture-section">
+        <summary data-i18n="captureOptions">画像・動画の設定</summary>
+        <label for="capture-size" data-i18n="imageWidth">画像幅</label><select id="capture-size"><option value="1600">1600 px</option><option value="2400">2400 px</option></select>
+        <label for="capture-background" data-i18n="background">背景</label><select id="capture-background"><option value="" data-i18n="currentTheme">現在のテーマ</option><option value="#ffffff" data-i18n="white">白</option><option value="#1a1a2e" data-i18n="dark">暗色</option></select>
+        <label for="video-duration" data-i18n="videoDuration">録画秒数</label><input id="video-duration" type="number" value="4" min="1" max="30" step="1">
+        <div class="control-row"><button id="save-video" type="button" data-i18n="saveVideo">動画保存</button><button id="cancel-video" type="button" data-i18n="cancel" hidden>取消</button></div>
+        <output id="video-status" aria-live="polite"></output>
+      </details>
+      <details id="settings-section">
+        <summary data-i18n="settings">表示条件の保存・復元</summary>
+        <button id="save-settings" type="button" data-i18n="saveSettings">条件JSONを保存</button>
+        <label for="settings-file" data-i18n="restoreSettings">条件JSONを復元</label><input id="settings-file" type="file" accept=".json">
+      </details>
+      <output id="tools-error" role="status"></output>
       <!-- ヘルプ -->
       <details id="help-section">
         <summary data-i18n="btnHelp">&#10067; ヘルプ</summary>

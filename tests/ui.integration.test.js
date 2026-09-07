@@ -204,3 +204,28 @@ describe('UI integration (setupUI against real index.html)', () => {
     expect(display._hasFile).toBe(true);
   });
 });
+
+describe('state synchronization regressions', () => {
+  it('preserves stopped modal time and timeline when changing language', () => {
+    loadIndexBody(); setLang('ja');
+    const data = parseFloorData(sample), controller = new AnimationController(data), viewer = makeViewerMock();
+    setupUI({ viewer, animController: controller, floorData: data });
+    const slider = document.getElementById('time-slider');
+    slider.value = String(controller.getPeriod() / 4); slider.dispatchEvent(new window.Event('input'));
+    const before = controller.getTime();
+    document.getElementById('btn-lang').click(); updatePlaybackDisplays(controller, viewer);
+    expect(controller.getTime()).toBe(before);
+    expect(Number(slider.value)).toBeCloseTo(before, 10);
+  });
+
+  it('updates the response maximum marker when the maximum moves to another node', () => {
+    loadIndexBody();
+    const raw = JSON.parse(responseSample);
+    raw.response_values = raw.time_s.map((_, i) => raw.node_order.map((__, j) => j === i % raw.node_order.length ? 1 : 0));
+    const data = parseFloorData(JSON.stringify(raw)), controller = new AnimationController(data), viewer = makeViewerMock();
+    setupUI({ viewer, animController: controller, floorData: data });
+    const checkbox = document.getElementById('chk-highlight'); checkbox.checked = true; checkbox.dispatchEvent(new window.Event('change'));
+    controller.setTime(raw.time_s[1]); updatePlaybackDisplays(controller, viewer);
+    expect(viewer.setHighlightNode).toHaveBeenLastCalledWith(raw.node_order[1]);
+  });
+});
