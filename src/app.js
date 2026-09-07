@@ -1,276 +1,152 @@
-/**
- * app.js -- 初期化・モジュール結合
- *
- * @module app
- */
-
-import { parseFloorDataSource } from './parser.js';
-import { validateFloorData } from './validator.js';
+/** Application lifecycle: transactional loading and demand-driven rendering. */
+import { loadFloorSource } from './loader.js';
 import { AnimationController } from './animation.js';
-import { setupUI, updatePlaybackDisplays } from './ui.js';
+import { setupUI, disposeUI, updatePlaybackDisplays } from './ui.js';
 import { initLang, t, applyTranslations } from './i18n.js';
-import { DOM_IDS, STORAGE_KEYS } from './constants.js';
+import { setupShell } from './shell.js';
+import { setupAnalysisTools } from './tools-ui.js';
+import { STORAGE_KEYS } from './constants.js';
 
-/** @type {FloorViewer|null} */
-let viewer = null;
-
-/** @type {AnimationController|null} */
-let animController = null;
-
-/** @type {number} */
-let prevTimestamp = 0;
-
-/** @type {number} */
-let rafId = 0;
-
-/**
- * エラー・警告を #error-container に表示する。
- * @param {Array<{code:string,message:string}>} errors
- * @param {Array<{code:string,message:string}>} warnings
- */
-function showMessages(errors, warnings) {
-  const container = document.getElementById(DOM_IDS.errorContainer);
-  if (!container) return;
-  container.innerHTML = '';
-
-  const errorCount = errors.length;
-  const warningCount = warnings.length;
-  if (errorCount === 0 && warningCount === 0) return;
-
+function showMessages(errors = [], warnings = []) {
+  const container = document.getElementById('error-container');
+  container.replaceChildren();
+  if (!errors.length && !warnings.length) return;
   const panel = document.createElement('details');
-  panel.className = `message-panel${errorCount > 0 ? ' has-errors' : ''}`;
-  panel.open = errorCount > 0;
-
+  panel.className = `message-panel${errors.length ? ' has-errors' : ''}`;
+  panel.open = !!errors.length;
   const summary = document.createElement('summary');
-  summary.className = 'message-summary';
-  if (errorCount > 0 && warningCount > 0) {
-    summary.textContent = t('messageSummaryBoth', { errors: errorCount, warnings: warningCount });
-  } else if (errorCount > 0) {
-    summary.textContent = t('messageSummaryErrors', { count: errorCount });
-  } else {
-    summary.textContent = t('messageSummaryWarnings', { count: warningCount });
-  }
+  summary.textContent = t(errors.length && warnings.length ? 'messageSummaryBoth' : errors.length ? 'messageSummaryErrors' : 'messageSummaryWarnings', { errors: errors.length, warnings: warnings.length, count: errors.length || warnings.length });
   panel.appendChild(summary);
-
-  const list = document.createElement('div');
-  list.className = 'message-list';
-
-  const append = (cls, message) => {
-    const div = document.createElement('div');
-    div.className = cls;
-    div.textContent = message;
-    list.appendChild(div);
-  };
-
-  errors.forEach((e) => append('msg-error', e.message));
-  warnings.forEach((w) => append('msg-warning', w.message));
-  panel.appendChild(list);
+  for (const [items, cls] of [[errors, 'msg-error'], [warnings, 'msg-warning']]) {
+    for (const item of items) { const line = document.createElement('div'); line.className = cls; line.textContent = item.message; panel.appendChild(line); }
+  }
   container.appendChild(panel);
 }
 
-/**
- * #error-container をクリアする。
- */
-function clearMessages() {
-  const container = document.getElementById(DOM_IDS.errorContainer);
-  if (container) container.innerHTML = '';
-}
-
-/**
- * 入力データから床モード標準形を読み込み、シーンを構築する。
- * viewer が既に存在している前提。
- *
- * @param {string|Array<{name:string,text:string}>} source  単一 JSON または calc/result ファイル群
- * @returns {boolean} 成功したら true
- */
-function loadData(source) {
-  clearMessages();
-
-  // パース
-  let data;
-  try {
-    data = parseFloorDataSource(source);
-  } catch (err) {
-    showMessages(
-      [{ code: 'E_DATA_PARSE', message: t('errorDataParse', { msg: err.message }) }],
-      [],
-    );
-    return false;
+export function createApplication({ FloorViewer, loader = loadFloorSource, toolsFactory = setupAnalysisTools }) {
+  const container = document.getElementById('canvas-container');
+  const viewer = new FloorViewer(container);
+  const events = new AbortController();
+  let controller = null, data = null, frame = 0, timestamp = null, frameKey = '', generation = 0;
+  let loading = null, disposed = false, toolsUI = null;
+  const on = (target, event, fn) => target.addEventListener(event, fn, { signal: events.signal });
+  function setReady(ready) {
+    document.body.dataset.ready = String(ready);
+    for (const element of document.querySelectorAll('#controls button, #controls input, #controls select')) {
+      if (!['btn-select-file', 'file-input', 'btn-lang', 'btn-theme', 'cancel-load'].includes(element.id)) element.disabled = !ready;
+    }
   }
-
-  // バリデーション
-  const { errors, warnings } = validateFloorData(data);
-  if (errors.length > 0) {
-    showMessages(errors, warnings);
-    return false;
+  function setStatus(key) {
+    document.body.dataset.loadState = key;
+    const el = document.getElementById('load-status');
+    el.dataset.i18n = key;
+    el.textContent = t(key);
+    const busy = ['loadReading', 'loadParsing', 'loadValidating'].includes(key);
+    document.getElementById('cancel-load').hidden = !busy;
+    document.getElementById('save-video').disabled = busy || !controller || !!toolsUI?.isRecording();
+    requestRender();
   }
-  if (warnings.length > 0) {
-    showMessages([], warnings);
+  function requestRender() {
+    if (!disposed && !frame && !document.hidden) frame = requestAnimationFrame(tick);
   }
-
-  // 既存アニメーションループを停止
-  stopAnimationLoop();
-
-  // シーン構築
-  viewer.loadFloorData(data);
-
-  // アニメーションコントローラ初期化
-  animController = new AnimationController(data);
-
-  // UI 再初期化
-  setupUI({
-    viewer,
-    animController,
-    floorData: data,
-    onFileLoad: handleFileLoad,
+  function updateFrame(force = false) {
+    if (!controller) return;
+    const key = [controller.getTime(), controller.getCurrentMode(), controller.getScale(), controller.isDisplayNormalized()].join(':');
+    if (key !== frameKey || force) {
+      const response = controller.getDataKind() === 'response';
+      viewer.updateDeformed(id => controller.getDisplacedZ(id), response ? id => controller.getResponseValue(id) : undefined, response ? controller.getResponseRange() : undefined);
+      frameKey = key;
+    }
+    updatePlaybackDisplays(controller, viewer);
+    toolsUI?.update();
+  }
+  function tick(now) {
+    frame = 0;
+    const delta = timestamp === null ? 0 : Math.max(0, (now - timestamp) / 1000);
+    timestamp = now;
+    if (!toolsUI?.isRecording()) controller?.update(delta);
+    updateFrame();
+    const damping = viewer.render();
+    if (controller?.isPlaying() || damping) requestRender();
+    else timestamp = null;
+  }
+  function cancelLoad() {
+    generation++;
+    loading?.abort(); loading = null;
+    setStatus(data ? 'loadReady' : 'loadCancelled');
+    requestRender();
+  }
+  async function load(source, name = '') {
+    if (toolsUI?.isRecording()) return false;
+    const current = ++generation;
+    loading?.abort();
+    const abort = new AbortController(); loading = abort;
+    setStatus('loadReading'); showMessages();
+    try {
+      const input = typeof source === 'function' ? await source(abort.signal) : source;
+      if (abort.signal.aborted) return false;
+      const nextData = await loader(input, { signal: abort.signal, onProgress: progress => {
+        if (current !== generation) return;
+        const stage = typeof progress === 'string' ? progress : progress.stage;
+        setStatus(stage === 'validate' || stage === 'validating' ? 'loadValidating' : 'loadParsing');
+      } });
+      if (disposed || current !== generation) return false;
+      if (toolsUI?.isRecording()) throw new Error('E_LOAD_RECORDING: cancel recording before replacing data');
+      const nextController = new AnimationController(nextData);
+      const oldTime = controller?.getTime();
+      controller?.stop();
+      try { viewer.loadFloorData(nextData); } catch (error) {
+        if (data) { viewer.loadFloorData(data); controller.setTime(oldTime); frameKey = ''; }
+        throw error;
+      }
+      toolsUI?.dispose();
+      controller = nextController; data = nextData; frameKey = ''; timestamp = null;
+      setReady(true);
+      setupUI({ viewer, animController: controller, floorData: data, beforeCapture: () => updateFrame(true) });
+      toolsUI = toolsFactory({ viewer, controller, data, requestRender, beforeCapture: () => updateFrame(true) });
+      const display = document.getElementById('file-name-display');
+      display.textContent = name || data.meta?.title || ''; display._hasFile = true;
+      showMessages([], nextData.validationWarnings || []);
+      setStatus('loadReady'); requestRender();
+      return true;
+    } catch (error) {
+      if (current !== generation || disposed) return false;
+      setStatus(error.name === 'AbortError' ? 'loadCancelled' : 'loadError');
+      if (error.name !== 'AbortError') showMessages(error.issues?.errors || error.errors || [{ code: 'E_DATA_LOAD', message: error.message }], error.issues?.warnings || []);
+      requestRender(); return false;
+    } finally { if (current === generation) loading = null; }
+  }
+  const disposeShell = setupShell({ load, cancel: cancelLoad, onChange: () => { viewer.setThemeColors(document.documentElement.dataset.theme === 'dark'); requestRender(); } });
+  setReady(false);
+  viewer.setRenderRequest(requestRender);
+  viewer.setThemeColors(document.documentElement.dataset.theme === 'dark');
+  on(window, 'resize', () => { viewer.resize(); toolsUI?.resize(); requestRender(); });
+  for (const event of ['click', 'input', 'change', 'keydown', 'toggle']) on(document, event, requestRender);
+  on(document, 'visibilitychange', () => {
+    if (document.hidden) { controller?.stop(); toolsUI?.cancelRecording(); if (frame) cancelAnimationFrame(frame); frame = 0; timestamp = null; }
+    else requestRender();
   });
-
-  // 初回描画（アニメーションループ開始前にレンダリング）
-  updateViewerFrame();
-  viewer.render();
-
-  // アニメーションループ開始
-  startAnimationLoop();
-
-  return true;
-}
-
-/**
- * アニメーションループを開始する（既存ループがあれば張り替える）。
- */
-function startAnimationLoop() {
-  stopAnimationLoop();
-  prevTimestamp = 0;
-  rafId = requestAnimationFrame(animationLoop);
-}
-
-/**
- * 実行中のアニメーションループを停止する。
- */
-function stopAnimationLoop() {
-  if (rafId) {
-    cancelAnimationFrame(rafId);
-    rafId = 0;
+  function dispose() {
+    disposed = true; generation++; loading?.abort();
+    if (frame) cancelAnimationFrame(frame);
+    toolsUI?.dispose(); disposeUI(); disposeShell(); events.abort(); viewer.dispose();
   }
+  on(window, 'pagehide', event => { if (!event.persisted) dispose(); });
+  viewer.resize(); requestRender();
+  return { load, cancelLoad, dispose, requestRender, getState: () => ({ data, controller, loading: !!loading }) };
 }
 
-/**
- * ファイル読込コールバック。
- * @param {string|Array<{name:string,text:string}>} source
- */
-function handleFileLoad(source) {
-  loadData(source);
-}
-
-/**
- * requestAnimationFrame ループ。
- * @param {DOMHighResTimeStamp} timestamp
- */
-function animationLoop(timestamp) {
-  rafId = requestAnimationFrame(animationLoop);
-
-  // delta 計算 (秒)
-  if (prevTimestamp === 0) {
-    prevTimestamp = timestamp;
-  }
-  const delta = (timestamp - prevTimestamp) / 1000;
-  prevTimestamp = timestamp;
-
-  if (!animController || !viewer) return;
-
-  // アニメーション更新
-  animController.update(delta);
-
-  // 変形線更新
-  updateViewerFrame();
-
-  // 描画
-  viewer.render();
-
-  // 時間表示・タイムライン追従
-  updatePlaybackDisplays(animController, viewer);
-}
-
-function updateViewerFrame() {
-  if (!viewer || !animController) return;
-  const isResponse = animController.getDataKind() === 'response';
-  viewer.updateDeformed(
-    (id) => animController.getDisplacedZ(id),
-    isResponse ? (id) => animController.getResponseValue(id) : undefined,
-    isResponse ? animController.getResponseRange() : undefined,
-  );
-}
-
-/**
- * アプリケーション初期化。
- * DOMContentLoaded から呼ばれる。
- */
 export async function initApp() {
-  // 言語初期化
-  initLang();
-  applyTranslations();
-
-  const canvasContainer = document.getElementById(DOM_IDS.canvasContainer);
-
-  // FloorViewer 初期化
+  initLang(); applyTranslations();
+  try { if (localStorage.getItem(STORAGE_KEYS.theme) === 'dark') document.documentElement.dataset.theme = 'dark'; } catch { /* unavailable */ }
   try {
-    // three.js と描画addonsは初期化時に別chunkとして遅延読込する。
     const { FloorViewer } = await import('./viewer.js');
-    viewer = new FloorViewer(canvasContainer);
-  } catch (err) {
-    console.error('FloorViewer init failed:', err);
-    showMessages(
-      [{ code: 'E_WEBGL', message: t('errorWebGL', { msg: err.message }) }],
-      [],
-    );
-    return;
-  }
-
-  // 初期リサイズ（CSS レイアウト完了後のサイズに合わせる）
-  viewer.resize();
-
-  // 保存済みテーマの復元
-  const savedTheme = localStorage.getItem(STORAGE_KEYS.theme);
-  if (savedTheme === 'dark') {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    viewer.setThemeColors(true);
-  }
-
-  // ウィンドウリサイズ対応
-  window.addEventListener('resize', () => {
-    if (viewer) viewer.resize();
-  });
-
-  // manifest 付きサンプル calc/result 自動読込
-  let loaded = false;
-  try {
-    const [modelRes, resultRes, manifestRes] = await Promise.all([
-      fetch('Sample/Test0202_calc.yaml'),
-      fetch('Sample/Test0202_calc_go_modal_result.json'),
-      fetch('Sample/Test0202_manifest.json'),
-    ]);
-    if (!modelRes.ok) throw new Error(`model HTTP ${modelRes.status}`);
-    if (!resultRes.ok) throw new Error(`result HTTP ${resultRes.status}`);
-    if (!manifestRes.ok) throw new Error(`manifest HTTP ${manifestRes.status}`);
-    const [modelText, resultText, manifestText] = await Promise.all([
-      modelRes.text(), resultRes.text(), manifestRes.text(),
-    ]);
-    loaded = loadData([
-      { name: 'Test0202_calc.yaml', text: modelText },
-      { name: 'Test0202_calc_go_modal_result.json', text: resultText },
-      { name: 'Test0202_manifest.json', text: manifestText },
-    ]);
-  } catch (err) {
-    console.error('Sample data load failed:', err);
-    showMessages(
-      [{ code: 'E_FETCH', message: t('errorFetch', { msg: err.message }) }],
-      [],
-    );
-  }
-
-  // サンプル読込失敗・バリデーションエラー時でも viewer は動かしておく
-  // （loadData 成功時は内部でループ開始済み）
-  if (!loaded) {
-    startAnimationLoop();
-  }
+    const app = createApplication({ FloorViewer });
+    await app.load(async signal => Promise.all(['Test0202_calc.yaml', 'Test0202_calc_go_modal_result.json', 'Test0202_manifest.json'].map(async name => {
+      const response = await fetch(`${import.meta.env.BASE_URL}Sample/${name}`, { signal });
+      if (!response.ok) throw new Error(`E_FETCH: ${name} HTTP ${response.status}`);
+      return { name, text: await response.text() };
+    })), 'Test0202');
+    return app;
+  } catch (error) { showMessages([{ code: 'E_WEBGL', message: t('errorWebGL', { msg: error.message }) }]); return null; }
 }

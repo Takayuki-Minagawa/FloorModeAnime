@@ -13,7 +13,8 @@ import { parseFloorData } from '../src/parser.js';
 import { AnimationController } from '../src/animation.js';
 import { setupUI, updatePlaybackDisplays } from '../src/ui.js';
 import { applyTranslations, initLang, setLang } from '../src/i18n.js';
-import { STORAGE_KEYS } from '../src/constants.js';
+import { STORAGE_KEYS, THEME } from '../src/constants.js';
+import { buildSettings, validateSettings, SETTING_IDS } from '../src/settings.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
@@ -54,6 +55,50 @@ describe('UI integration (setupUI against real index.html)', () => {
     floorData = parseFloorData(sample);
     animController = new AnimationController(floorData);
     viewer = makeViewerMock();
+  });
+
+  it.each(['mode', 'response'])('theme colors and custom colors survive a saved-settings roundtrip (%s)', kind => {
+    if (kind === 'response') {
+      floorData = parseFloorData(responseSample);
+      animController = new AnimationController(floorData);
+    }
+    const toHex = value => `#${value.toString(16).padStart(6, '0')}`;
+    let dark = false;
+    const overrides = {};
+    viewer.getLineColors.mockImplementation(() => {
+      const theme = dark ? THEME.dark : THEME.light;
+      return {
+        undeformedColor: overrides.undeformedColor ?? toHex(theme.undeformed),
+        deformedColor: overrides.deformedColor ?? toHex(kind === 'response' ? theme.response : theme.deformed),
+      };
+    });
+    viewer.setThemeColors.mockImplementation(value => { dark = value; });
+    viewer.setLineStyle.mockImplementation(style => Object.assign(overrides, style));
+    viewer.getViewState = () => ({ position: [4, 4, 4], target: [0, 0, 0], up: [0, 1, 0], zoom: 1 });
+    setupUI({ viewer, animController, floorData });
+    const undeformed = document.getElementById('color-undeformed');
+    const deformed = document.getElementById('color-deformed');
+    undeformed.value = '#123456';
+    undeformed.dispatchEvent(new Event('input'));
+    document.getElementById('btn-theme').click();
+    const savedColors = viewer.getLineColors();
+    expect(undeformed.value).toBe('#123456');
+    expect(deformed.value).toBe(toHex(kind === 'response' ? THEME.dark.response : THEME.dark.deformed));
+    const controls = Object.fromEntries(SETTING_IDS.map(id => {
+      const element = document.getElementById(id);
+      return [id, element.type === 'checkbox' ? element.checked : element.value];
+    }));
+    const saved = validateSettings(JSON.parse(JSON.stringify(buildSettings(floorData, animController, viewer, 1, controls))), floorData);
+    expect(saved.controls['color-undeformed']).toBe(savedColors.undeformedColor);
+    expect(saved.controls['color-deformed']).toBe(savedColors.deformedColor);
+    document.getElementById('btn-theme').click();
+    expect(deformed.value).toBe(toHex(kind === 'response' ? THEME.light.response : THEME.light.deformed));
+    for (const id of ['color-undeformed', 'color-deformed']) {
+      const element = document.getElementById(id);
+      element.value = saved.controls[id];
+      element.dispatchEvent(new Event('input'));
+    }
+    expect(viewer.getLineColors()).toEqual(savedColors);
   });
 
   it('setupUI が例外なく完了し、初期表示を構築する', () => {
@@ -202,5 +247,30 @@ describe('UI integration (setupUI against real index.html)', () => {
 
     expect(display.textContent).toBe('response_case.json');
     expect(display._hasFile).toBe(true);
+  });
+});
+
+describe('state synchronization regressions', () => {
+  it('preserves stopped modal time and timeline when changing language', () => {
+    loadIndexBody(); setLang('ja');
+    const data = parseFloorData(sample), controller = new AnimationController(data), viewer = makeViewerMock();
+    setupUI({ viewer, animController: controller, floorData: data });
+    const slider = document.getElementById('time-slider');
+    slider.value = String(controller.getPeriod() / 4); slider.dispatchEvent(new window.Event('input'));
+    const before = controller.getTime();
+    document.getElementById('btn-lang').click(); updatePlaybackDisplays(controller, viewer);
+    expect(controller.getTime()).toBe(before);
+    expect(Number(slider.value)).toBeCloseTo(before, 10);
+  });
+
+  it('updates the response maximum marker when the maximum moves to another node', () => {
+    loadIndexBody();
+    const raw = JSON.parse(responseSample);
+    raw.response_values = raw.time_s.map((_, i) => raw.node_order.map((__, j) => j === i % raw.node_order.length ? 1 : 0));
+    const data = parseFloorData(JSON.stringify(raw)), controller = new AnimationController(data), viewer = makeViewerMock();
+    setupUI({ viewer, animController: controller, floorData: data });
+    const checkbox = document.getElementById('chk-highlight'); checkbox.checked = true; checkbox.dispatchEvent(new window.Event('change'));
+    controller.setTime(raw.time_s[1]); updatePlaybackDisplays(controller, viewer);
+    expect(viewer.setHighlightNode).toHaveBeenLastCalledWith(raw.node_order[1]);
   });
 });

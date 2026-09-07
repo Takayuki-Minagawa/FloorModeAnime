@@ -50,6 +50,11 @@ export function canonicalJson(value) {
 /** Return the lowercase SHA-256 hex digest of a UTF-8 string. */
 export function sha256Hex(text) {
   const bytes = new TextEncoder().encode(String(text));
+  return sha256Bytes(bytes);
+}
+
+/** Hash original file bytes, including BOM and noncanonical whitespace. */
+export function sha256Bytes(bytes) {
   const bitLength = BigInt(bytes.length) * 8n;
   const paddedLength = Math.ceil((bytes.length + 9) / 64) * 64;
   const padded = new Uint8Array(paddedLength);
@@ -114,4 +119,8 @@ export function nodeOrderHash(nodeOrder, dofOrder) {
 /** Hash a UTF-8 file text in manifest notation. */
 export function textFileHash(text) {
   return `sha256:${sha256Hex(text)}`;
+}
+
+export function bytesFileHash(bytes) {
+  return `sha256:${sha256Bytes(bytes)}`;
 }

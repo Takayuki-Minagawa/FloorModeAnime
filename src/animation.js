@@ -45,6 +45,9 @@ export class AnimationController {
     this._currentMode = null;
     this._scale = SCALE.DEFAULT;
     this._speed = SPEED.DEFAULT;
+    this._observationPeriod = null;
+    this._frameTime = null;
+    this._frameMode = null;
     this._time = 0;
     this._playing = false;
     this._displayNormalized = true;
@@ -57,6 +60,7 @@ export class AnimationController {
       this._responseTimes = response.times;
       this._responseValues = response.values;
       this._responseNodeOrder = response.nodeOrder;
+      this._frameValues = new Float64Array(this._responseNodeOrder.length);
       this._responseNodeIndex = new Map(
         this._responseNodeOrder.map((nodeId, index) => [nodeId, index]),
       );
@@ -104,7 +108,7 @@ export class AnimationController {
    * @param {number} modeNum
    */
   setMode(modeNum) {
-    if (this._dataKind === 'response') return;
+    if (this._dataKind === 'response' || !this._modes.has(modeNum)) return;
     this._currentMode = modeNum;
     this._time = 0;
     this._playing = false;
@@ -137,7 +141,7 @@ export class AnimationController {
    * @param {number} s
    */
   setScale(s) {
-    this._scale = Math.max(SCALE.MIN, Math.min(SCALE.MAX, s));
+    if (Number.isFinite(s)) this._scale = Math.max(SCALE.MIN, Math.min(SCALE.MAX, s));
   }
 
   /**
@@ -185,12 +189,11 @@ export class AnimationController {
     // 未記載の節点モード値は uz = 0.0 とみなす
     const uz_im = modeShape.has(nodeId) ? modeShape.get(nodeId) : 0.0;
     const umaxM = this._umaxMap.get(this._currentMode);
-    const freqM = this._freqHz.get(this._currentMode) ?? 0;
-    const phi0 = this._phase0.get(this._currentMode) ?? 0;
+    this._ensureFrame();
 
     // u_i(t) = S * A_ref * (uz_i,m / Umax_m) * sin(2π f_m t + φ0)
     const u_i = this._scale * this._aRef * (uz_im / umaxM)
-      * Math.sin(TWO_PI * freqM * this._time + phi0);
+      * this._frameSine;
 
     return z_i + u_i;
   }
@@ -200,7 +203,19 @@ export class AnimationController {
    * @param {number} speed
    */
   setSpeed(speed) {
-    this._speed = Math.max(SPEED.MIN, Math.min(SPEED.MAX, speed));
+    if (Number.isFinite(speed)) this._speed = Math.max(SPEED.MIN, Math.min(SPEED.MAX, speed));
+  }
+
+  /** Set the wall-clock duration of one modal cycle; null restores normal speed. */
+  setObservationPeriod(seconds) {
+    if (this._dataKind !== 'mode') return;
+    if (seconds === null || (Number.isFinite(seconds) && seconds > 0)) {
+      this._observationPeriod = seconds;
+    }
+  }
+
+  getObservationPeriod() {
+    return this._observationPeriod;
   }
 
   /**
@@ -226,8 +241,13 @@ export class AnimationController {
    * @param {number} deltaTime - 経過時間 [s]
    */
   update(deltaTime) {
-    if (this._playing) {
-      this._time += deltaTime * this._speed;
+    if (this._playing && Number.isFinite(deltaTime) && deltaTime >= 0) {
+      const frequency = this.getFreqHz();
+      const rate = this._observationPeriod === null ? this._speed
+        : (frequency > 0 ? 1 / (frequency * this._observationPeriod) : 0);
+      const nextTime = this._time + deltaTime * rate;
+      if (!Number.isFinite(nextTime)) return;
+      this._time = nextTime;
       if (this._dataKind === 'response') {
         const end = this._responseTimes.at(-1) ?? this._time;
         if (this._time >= end) {
@@ -265,13 +285,14 @@ export class AnimationController {
    */
   setTime(t) {
     const value = Number(t);
+    if (!Number.isFinite(value)) return;
     if (this._dataKind === 'response') {
       const start = this._responseTimes[0] ?? 0;
       const end = this._responseTimes.at(-1) ?? start;
-      this._time = Math.max(start, Math.min(end, Number.isFinite(value) ? value : start));
+      this._time = Math.max(start, Math.min(end, value));
       return;
     }
-    this._time = Math.max(0, value || 0);
+    this._time = Math.max(0, value);
   }
 
   /**
@@ -305,16 +326,8 @@ export class AnimationController {
    */
   getMaxNode(modeNum) {
     if (this._dataKind === 'response') {
-      let maxNode = null;
-      let maxValue = -1;
-      for (const nodeId of this._responseNodeOrder) {
-        const value = Math.abs(this.getResponseValue(nodeId));
-        if (value > maxValue) {
-          maxValue = value;
-          maxNode = nodeId;
-        }
-      }
-      return maxNode;
+      this._ensureFrame();
+      return this._frameMaxNode;
     }
     if (modeNum === undefined || modeNum === null) {
       modeNum = this._currentMode;
@@ -357,22 +370,51 @@ export class AnimationController {
     if (this._dataKind !== 'response') return 0;
     const nodeIndex = this._responseNodeIndex.get(nodeId);
     if (nodeIndex === undefined || this._responseTimes.length === 0) return 0;
-    const times = this._responseTimes;
-    if (this._time <= times[0]) return this._responseValues[0][nodeIndex];
-    const lastIndex = times.length - 1;
-    if (this._time >= times[lastIndex]) return this._responseValues[lastIndex][nodeIndex];
+    this._ensureFrame();
+    return this._frameValues[nodeIndex];
+  }
 
-    let low = 0;
-    let high = lastIndex;
-    while (high - low > 1) {
-      const mid = Math.floor((low + high) / 2);
-      if (times[mid] <= this._time) low = mid;
-      else high = mid;
+  /** Cache interpolation and extrema once per time; retain physical Float64 values. */
+  _ensureFrame() {
+    if (this._frameTime === this._time && this._frameMode === this._currentMode) return;
+    this._frameTime = this._time;
+    this._frameMode = this._currentMode;
+    if (this._dataKind !== 'response') {
+      this._frameSine = Math.sin(TWO_PI * this.getFreqHz() * this._time + this.getPhase());
+      return;
     }
-    const ratio = (this._time - times[low]) / (times[high] - times[low]);
-    const first = this._responseValues[low][nodeIndex];
-    const second = this._responseValues[high][nodeIndex];
-    return first + (second - first) * ratio;
+    const times = this._responseTimes;
+    let low = 0;
+    let high = times.length - 1;
+    if (this._time <= times[0]) high = low;
+    else if (this._time >= times[high]) low = high;
+    else {
+      while (high - low > 1) {
+        const mid = Math.floor((low + high) / 2);
+        if (times[mid] <= this._time) low = mid;
+        else high = mid;
+      }
+    }
+    const ratio = high === low ? 0 : (this._time - times[low]) / (times[high] - times[low]);
+    let min = Infinity;
+    let max = -Infinity;
+    let maxAbs = -1;
+    this._frameMaxNode = null;
+    for (let index = 0; index < this._frameValues.length; index++) {
+      const first = this._responseValues[low][index];
+      // Preserve exact samples, including very large finite values at endpoints.
+      const second = this._responseValues[high][index];
+      const value = ratio === 0 ? first : ratio === 1 ? second
+        : first * (1 - ratio) + second * ratio;
+      this._frameValues[index] = value;
+      if (value < min) min = value;
+      if (value > max) max = value;
+      if (Math.abs(value) > maxAbs) {
+        maxAbs = Math.abs(value);
+        this._frameMaxNode = this._responseNodeOrder[index];
+      }
+    }
+    this._frameRange = min === Infinity ? { min: 0, max: 0 } : { min, max };
   }
 
   /** Viewer ordinate: normalized L/10 presentation or exact raw archive value. */
@@ -404,14 +446,8 @@ export class AnimationController {
   /** Current frame range in physical response units. */
   getCurrentResponseRange() {
     if (this._dataKind !== 'response') return { min: 0, max: 0 };
-    let min = Infinity;
-    let max = -Infinity;
-    for (const nodeId of this._responseNodeOrder) {
-      const value = this.getResponseValue(nodeId);
-      if (value < min) min = value;
-      if (value > max) max = value;
-    }
-    return min === Infinity ? { min: 0, max: 0 } : { min, max };
+    this._ensureFrame();
+    return { ...this._frameRange };
   }
 
   getTimelineRange() {
@@ -428,15 +464,17 @@ export class AnimationController {
   stepResponseFrame(direction) {
     if (this._dataKind !== 'response' || this._responseTimes.length === 0) return;
     this.stop();
-    if (direction >= 0) {
-      const next = this._responseTimes.find((time) => time > this._time + Number.EPSILON);
-      this.setTime(next ?? this._responseTimes.at(-1));
-    } else {
-      const previous = [...this._responseTimes]
-        .reverse()
-        .find((time) => time < this._time - Number.EPSILON);
-      this.setTime(previous ?? this._responseTimes[0]);
+    // Upper/lower bound avoids scanning and copying long archives.
+    const times = this._responseTimes;
+    let low = 0;
+    let high = times.length;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      const before = direction >= 0 ? times[mid] <= this._time : times[mid] < this._time;
+      if (before) low = mid + 1;
+      else high = mid;
     }
+    this.setTime(times[direction >= 0 ? Math.min(low, times.length - 1) : Math.max(0, low - 1)]);
   }
 
   /**

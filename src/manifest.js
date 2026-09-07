@@ -1,3 +1,5 @@
+import { camelize } from './data/keys.js';
+
 /**
  * floorvib-project/1 viewer-side contract handling.
  *
@@ -5,7 +7,7 @@
  * fatal error: units, axes, node/DOF order and normalization must be explicit.
  */
 
-import { canonicalJson, nodeOrderHash, textFileHash } from './integrity.js';
+import { canonicalJson, nodeOrderHash, textFileHash, bytesFileHash } from './integrity.js';
 import { parse as parseYaml } from 'yaml';
 
 export const PROJECT_SCHEMA_VERSION = 'floorvib-project/1';
@@ -30,17 +32,7 @@ const NORMALIZATION_TYPES = new Set([
   'solver-eigenvector',
 ]);
 
-const toCamelCase = (key) => key.replace(/[_-]([a-z0-9])/gi, (_, ch) => ch.toUpperCase());
 
-function camelize(value) {
-  if (Array.isArray(value)) return value.map(camelize);
-  if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, child]) => [toCamelCase(key), camelize(child)]),
-    );
-  }
-  return value;
-}
 
 const basename = (path) => String(path ?? '').replaceAll('\\', '/').split('/').at(-1);
 
@@ -389,7 +381,7 @@ function validateArtifacts(contract, files, errors) {
       );
       continue;
     }
-    const actualHash = textFileHash(file.text);
+    const actualHash = file.bytes instanceof Uint8Array ? bytesFileHash(file.bytes) : textFileHash(file.text);
     if (actualHash !== record.sha256) {
       addIssue(
         errors,
@@ -398,7 +390,7 @@ function validateArtifacts(contract, files, errors) {
       );
     }
     if (record.size !== undefined) {
-      const actualSize = new TextEncoder().encode(file.text).length;
+      const actualSize = file.bytes?.byteLength ?? new TextEncoder().encode(file.text).length;
       if (record.size !== actualSize) {
         addIssue(
           errors,

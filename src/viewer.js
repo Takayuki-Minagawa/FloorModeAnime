@@ -13,6 +13,8 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { THEME, LINE_WIDTH, VIEW, CAMERA_PRESETS } from './constants.js';
 import { computeFloorMetrics, toThree, setThreePosition } from './geometry.js';
+import { analyzeSurface } from './surface.js';
+import { captureSize, canvasBlob, downloadBlob, drawCaptureAnnotations, supportedVideoType } from './capture.js';
 
 export class FloorViewer {
   /**
@@ -52,6 +54,13 @@ export class FloorViewer {
     this._controls = new OrbitControls(this._camera, this._renderer.domElement);
     this._controls.enableDamping = true;
     this._controls.dampingFactor = 0.1;
+    this._requestRender = null;
+    this._controlsChanged = () => this._requestRender?.();
+    this._controls.addEventListener('change', this._controlsChanged);
+    this._pointerDown = event => { this._pointerStart = [event.clientX, event.clientY]; };
+    this._pointerUp = event => this._pickNode(event);
+    this._renderer.domElement.addEventListener('pointerdown', this._pointerDown);
+    this._renderer.domElement.addEventListener('pointerup', this._pointerUp);
 
     // グループ管理（表示ON/OFF用）
     this._undeformedGroup = new THREE.Group();
@@ -66,6 +75,8 @@ export class FloorViewer {
     this._labelsGroup.name = 'labels';
     this._highlightGroup = new THREE.Group();
     this._highlightGroup.name = 'highlight';
+    this._selectionGroup = new THREE.Group();
+    this._selectionGroup.name = 'selection';
 
     this._scene.add(this._undeformedGroup);
     this._scene.add(this._deformedGroup);
@@ -73,6 +84,18 @@ export class FloorViewer {
     this._scene.add(this._gridGroup);
     this._scene.add(this._labelsGroup);
     this._scene.add(this._highlightGroup);
+    this._scene.add(this._selectionGroup);
+    this._selectedNodeId = null;
+    this._selectionMesh = null;
+    this._lastDisplacedZ = null;
+    this._frameMetadata = {};
+    this._envelope = null;
+    this._captureActive = false;
+    this._disposed = false;
+    this._colorWhite = new THREE.Color(0xf3f5f7);
+    this._colorBlue = new THREE.Color(0x2554c7);
+    this._colorRed = new THREE.Color(0xd52b1e);
+    this._colorScratch = new THREE.Color();
 
     // 変形線のジオメトリ参照 (updateDeformed で頂点を更新するため)
     this._deformedGeometry = null;
@@ -129,6 +152,11 @@ export class FloorViewer {
     this._clearGroup(this._gridGroup);
     this._clearGroup(this._labelsGroup);
     this._clearGroup(this._highlightGroup);
+    this._clearGroup(this._selectionGroup);
+    this._selectionMesh = null;
+    this._selectedNodeId = null;
+    this._envelope = null;
+    this._lastDisplacedZ = null;
     this._highlightMesh = null;
     this._highlightNodeId = null;
     this._contourGeometry = null;
@@ -227,9 +255,11 @@ export class FloorViewer {
       labelDiv.className = 'node-label';
       labelDiv.textContent = node.id;
       const labelObj = new CSS2DObject(labelDiv);
+      labelObj.userData.nodeId = node.id;
       setThreePosition(labelObj, node.x, node.y, node.z);
       this._labelsGroup.add(labelObj);
     }
+    this._requestRender?.();
   }
 
   /** 現在のテーマ色セットを返す */
@@ -287,10 +317,12 @@ export class FloorViewer {
    * @param {number|null} nodeId - null でハイライト解除
    */
   setHighlightNode(nodeId) {
+    if (nodeId === this._highlightNodeId) return;
     this._highlightNodeId = nodeId;
 
     if (nodeId === null || nodeId === undefined) {
       this._highlightGroup.visible = false;
+      this._requestRender?.();
       return;
     }
 
@@ -303,6 +335,86 @@ export class FloorViewer {
       this._highlightGroup.add(this._highlightMesh);
     }
     this._highlightGroup.visible = true;
+    this._updateMarker(this._highlightMesh, nodeId);
+    this._requestRender?.();
+  }
+
+  setRenderRequest(callback) { this._requestRender = callback; }
+
+  getViewState() {
+    return { position: this._camera.position.toArray(), target: this._controls.target.toArray(),
+      up: this._camera.up.toArray(), zoom: this._camera.zoom };
+  }
+
+  setViewState(state) {
+    const vector = value => Array.isArray(value) && value.length === 3 && value.every(Number.isFinite);
+    if (!state || !vector(state.position) || !vector(state.target) || !vector(state.up) ||
+      !Number.isFinite(state.zoom) || state.zoom <= 0) throw new Error('E_VIEW_STATE: invalid camera state');
+    const current = this.getViewState();
+    if (['position', 'target', 'up'].every(key => current[key].every((value, i) =>
+      Math.abs(value - state[key][i]) <= 1e-12)) && Math.abs(current.zoom - state.zoom) <= 1e-12) return;
+    // Drain any pending damping before assigning the exact saved camera.
+    const damping = this._controls.enableDamping;
+    this._controls.enableDamping = false;
+    this._controls.update();
+    this._camera.position.fromArray(state.position);
+    this._controls.target.fromArray(state.target);
+    this._camera.up.fromArray(state.up);
+    this._camera.zoom = state.zoom;
+    this._camera.updateProjectionMatrix();
+    this._controls.update();
+    this._controls.enableDamping = damping;
+    this._requestRender?.();
+  }
+
+  onNodeSelect(callback) { this._onNodeSelect = callback; }
+
+  _pickNode(event) {
+    if (this._captureActive || !this._onNodeSelect || !this._floorData || !this._pointerStart ||
+      event.button !== 0 || Math.hypot(event.clientX - this._pointerStart[0], event.clientY - this._pointerStart[1]) > 5) return;
+    const rect = this._renderer.domElement.getBoundingClientRect();
+    let selected = null, distance = 16;
+    const projected = new THREE.Vector3();
+    for (const node of this._floorData.nodes.values()) {
+      const z = this._envelope || !this._deformedGroup.visible ? node.z : (this._lastDisplacedZ?.(node.id) ?? node.z);
+      projected.set(node.y, z, node.x).project(this._camera);
+      if (projected.z < -1 || projected.z > 1) continue;
+      const d = Math.hypot(rect.left + (projected.x + 1) * rect.width / 2 - event.clientX,
+        rect.top + (1 - projected.y) * rect.height / 2 - event.clientY);
+      if (d < distance) { selected = node.id; distance = d; }
+    }
+    if (selected !== null) this._onNodeSelect(selected);
+  }
+
+  setSelectedNode(nodeId) {
+    if (nodeId === this._selectedNodeId) return;
+    this._selectedNodeId = this._floorData?.nodes.has(nodeId) ? nodeId : null;
+    this._selectionGroup.visible = this._selectedNodeId !== null;
+    if (this._selectedNodeId !== null && !this._selectionMesh) {
+      this._selectionMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(Math.max(this._lFloor * 0.025, 1e-6), 16, 12),
+        new THREE.MeshBasicMaterial({ color: 0xffaa00, wireframe: true, depthTest: false }),
+      );
+      this._selectionMesh.renderOrder = 3;
+      this._selectionGroup.add(this._selectionMesh);
+    }
+    this._updateMarker(this._selectionMesh, this._selectedNodeId);
+    this._requestRender?.();
+  }
+
+  _updateMarker(mesh, nodeId) {
+    const node = this._floorData?.nodes.get(nodeId);
+    if (mesh && node) setThreePosition(mesh, node.x, node.y,
+      this._envelope ? node.z : (this._lastDisplacedZ?.(nodeId) ?? node.z));
+  }
+
+  /** Envelope always uses the undeformed surface and zero-to-maximum colors. */
+  setEnvelope(values, range) {
+    if ((!values && !this._envelope) || (this._envelope?.values === values &&
+      this._envelope?.range?.min === range?.min && this._envelope?.range?.max === range?.max)) return;
+    this._envelope = values instanceof Map ? { values, range } : null;
+    if (this._lastDisplacedZ) this.updateDeformed(this._lastDisplacedZ, this._lastScalarValue, this._lastResponseRange);
+    this._requestRender?.();
   }
 
   /**
@@ -313,6 +425,10 @@ export class FloorViewer {
    */
   updateDeformed(getDisplacedZ, getScalarValue, responseRange) {
     if (!this._deformedGeometry || !this._floorData) return;
+    this._lastDisplacedZ = getDisplacedZ;
+    this._lastScalarValue = getScalarValue;
+    this._lastResponseRange = responseRange;
+    const displayZ = this._envelope ? id => this._floorData.nodes.get(id).z : getDisplacedZ;
 
     const startAttr = this._deformedGeometry.getAttribute('instanceStart');
     const endAttr = this._deformedGeometry.getAttribute('instanceEnd');
@@ -325,31 +441,32 @@ export class FloorViewer {
       const nj = nodes.get(entry.nodeJ);
       if (!ni || !nj) continue;
 
-      const zI = getDisplacedZ(entry.nodeI);
-      const zJ = getDisplacedZ(entry.nodeJ);
+      const zI = displayZ(entry.nodeI);
+      const zJ = displayZ(entry.nodeJ);
 
       // 変位後の z を使って data → three.js 座標へマッピング
-      startAttr.setXYZ(entry.segmentIndex, ...toThree(ni.x, ni.y, zI));
-      endAttr.setXYZ(entry.segmentIndex, ...toThree(nj.x, nj.y, zJ));
+      startAttr.setXYZ(entry.segmentIndex, ni.y, zI, ni.x);
+      endAttr.setXYZ(entry.segmentIndex, nj.y, zJ, nj.x);
     }
 
     // instanceStart と instanceEnd は同じ InstancedInterleavedBuffer を共有
     startAttr.data.needsUpdate = true;
     this._deformedGeometry.computeBoundingSphere();
 
-    // ハイライトマーカーを変位後の節点位置へ追従
-    if (this._highlightMesh && this._highlightNodeId !== null) {
-      const hn = nodes.get(this._highlightNodeId);
-      if (hn) {
-        const zH = getDisplacedZ(this._highlightNodeId);
-        setThreePosition(this._highlightMesh, hn.x, hn.y, zH);
+    this._updateMarker(this._highlightMesh, this._highlightNodeId);
+    this._updateMarker(this._selectionMesh, this._selectedNodeId);
+    if (this._labelsGroup.visible) {
+      for (const label of this._labelsGroup.children) {
+        const node = nodes.get(label.userData.nodeId);
+        setThreePosition(label, node.x, node.y, displayZ(node.id));
       }
     }
-
-    this._updateResponseContour(getDisplacedZ, getScalarValue, responseRange);
+    this._updateResponseContour(displayZ,
+      this._envelope ? id => this._envelope.values.get(id) ?? 0 : getScalarValue,
+      this._envelope?.range ?? responseRange);
   }
 
-  /** Build a fan-triangulated, per-vertex-colored response surface. */
+  /** Triangulate on each face's local plane, including concave polygons. */
   _createResponseContour(faces, nodes) {
     const positions = [];
     const colors = [];
@@ -357,8 +474,10 @@ export class FloorViewer {
 
     for (const face of faces) {
       const ids = face.nodeIds ?? [];
-      for (let index = 1; index < ids.length - 1; index++) {
-        for (const nodeId of [ids[0], ids[index], ids[index + 1]]) {
+      const result = analyzeSurface(ids.map(id => nodes.get(id)));
+      if (result.errors.length) throw new Error(`${result.errors[0].code}: face ${face.id}: ${result.errors[0].message}`);
+      for (const triangle of result.triangles) {
+        for (const nodeId of triangle.map(index => ids[index])) {
           const node = nodes.get(nodeId);
           if (!node) continue;
           positions.push(...toThree(node.x, node.y, node.z));
@@ -405,7 +524,7 @@ export class FloorViewer {
     this._contourVertexNodeIds.forEach((nodeId, index) => {
       const node = nodes.get(nodeId);
       if (!node) return;
-      positions.setXYZ(index, ...toThree(node.x, node.y, getDisplacedZ(nodeId)));
+      positions.setXYZ(index, node.y, getDisplacedZ(nodeId), node.x);
       const normalized = Math.max(-1, Math.min(1, getScalarValue(nodeId) / maxAbs));
       const color = this._responseColor(normalized);
       colors.setXYZ(index, color.r, color.g, color.b);
@@ -417,9 +536,7 @@ export class FloorViewer {
 
   /** Blue → white → red diverging color for a value normalized to [-1,1]. */
   _responseColor(value) {
-    const white = new THREE.Color(0xf3f5f7);
-    const endpoint = new THREE.Color(value < 0 ? 0x2554c7 : 0xd52b1e);
-    return white.lerp(endpoint, Math.abs(value));
+    return this._colorScratch.copy(this._colorWhite).lerp(value < 0 ? this._colorBlue : this._colorRed, Math.abs(value));
   }
 
   /**
@@ -427,11 +544,18 @@ export class FloorViewer {
    * @param {Object} visibility - { undeformed, deformed, axes, grid, labels }
    */
   setVisibility({ undeformed, deformed, axes, grid, labels }) {
-    if (undeformed !== undefined) this._undeformedGroup.visible = !!undeformed;
-    if (deformed !== undefined) this._deformedGroup.visible = !!deformed;
-    if (axes !== undefined) this._axesGroup.visible = !!axes;
-    if (grid !== undefined) this._gridGroup.visible = !!grid;
-    if (labels !== undefined) this._labelsGroup.visible = !!labels;
+    let changed = false;
+    for (const [group, value] of [[this._undeformedGroup, undeformed], [this._deformedGroup, deformed],
+      [this._axesGroup, axes], [this._gridGroup, grid], [this._labelsGroup, labels]]) {
+      if (value !== undefined && group.visible !== !!value) { group.visible = !!value; changed = true; }
+    }
+    if (labels && this._lastDisplacedZ && this._floorData) {
+      for (const label of this._labelsGroup.children) {
+        const node = this._floorData.nodes.get(label.userData.nodeId);
+        setThreePosition(label, node.x, node.y, this._envelope ? node.z : this._lastDisplacedZ(node.id));
+      }
+    }
+    if (changed) this._requestRender?.();
   }
 
   /**
@@ -439,26 +563,144 @@ export class FloorViewer {
    * @param {string} filename
    * @returns {Promise<void>}
    */
-  savePNG(filename) {
-    return new Promise((resolve, reject) => {
-      // 最新の描画を保証
-      this._renderer.render(this._scene, this._camera);
+  setFrameMetadata(metadata) { this._frameMetadata = metadata ?? {}; }
 
-      const dataURL = this._renderer.domElement.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.href = dataURL;
-      link.download = filename || 'floor_mode.png';
-      document.body.appendChild(link);
-      try {
-        link.click();
-        resolve();
-      } catch (err) {
-        reject(err);
-      } finally {
-        // 例外時も <a> を確実に除去する
-        document.body.removeChild(link);
+  _captureCanvas({ width, height, background } = {}, output) {
+    const size = this._renderer.getSize(new THREE.Vector2());
+    const dimensions = captureSize(width, height, size.x, size.y);
+    const canvas = output ?? document.createElement('canvas');
+    if (canvas.width !== dimensions.width) canvas.width = dimensions.width;
+    if (canvas.height !== dimensions.height) canvas.height = dimensions.height;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('E_CAPTURE_CONTEXT: 2D canvas unavailable');
+    const ratio = this._renderer.getPixelRatio();
+    const aspect = this._camera.aspect;
+    const clear = this._renderer.getClearColor(new THREE.Color());
+    const alpha = this._renderer.getClearAlpha();
+    const customBackground = typeof background === 'string' && /^#[0-9a-f]{6}$/i.test(background)
+      ? new THREE.Color(background) : null;
+    const dark = customBackground
+      ? (customBackground.r * 0.2126 + customBackground.g * 0.7152 + customBackground.b * 0.0722 < 0.4)
+      : background === 'dark' || (background !== 'light' && this._isDark);
+    try {
+      this._renderer.setPixelRatio(1);
+      this._renderer.setSize(dimensions.width, dimensions.height, false);
+      this._camera.aspect = dimensions.width / dimensions.height;
+      this._camera.updateProjectionMatrix();
+      for (const mat of [this._undeformedMaterial, this._deformedMaterial]) {
+        mat?.resolution.set(dimensions.width, dimensions.height);
       }
-    });
+      this._renderer.setClearColor(customBackground ?? (dark ? THEME.dark.clear : THEME.light.clear), 1);
+      this._renderer.render(this._scene, this._camera);
+      context.drawImage(this._renderer.domElement, 0, 0);
+      const labels = [];
+      if (this._labelsGroup.visible) {
+        const projected = new THREE.Vector3();
+        for (const label of this._labelsGroup.children) {
+          const node = this._floorData.nodes.get(label.userData.nodeId);
+          const z = this._envelope ? node.z : (this._lastDisplacedZ?.(node.id) ?? node.z);
+          projected.set(node.y, z, node.x).project(this._camera);
+          if (projected.z < -1 || projected.z > 1 || Math.abs(projected.x) > 1 || Math.abs(projected.y) > 1) continue;
+          labels.push({ text: label.element.textContent, x: (projected.x + 1) * canvas.width / 2,
+            y: (1 - projected.y) * canvas.height / 2 });
+        }
+      }
+      drawCaptureAnnotations(context, canvas.width, canvas.height, this._frameMetadata, labels, dark);
+      return canvas;
+    } finally {
+      // Restore CSS dimensions before the device ratio, avoiding a transient
+      // width × height × ratio² allocation at the large export resolution.
+      this._renderer.setSize(size.x, size.y, false);
+      this._renderer.setPixelRatio(ratio);
+      this._renderer.setClearColor(clear, alpha);
+      this._camera.aspect = aspect;
+      this._camera.updateProjectionMatrix();
+      for (const mat of [this._undeformedMaterial, this._deformedMaterial]) mat?.resolution.set(size.x, size.y);
+      this._renderer.render(this._scene, this._camera);
+      this._css2dRenderer.render(this._scene, this._camera);
+    }
+  }
+
+  async savePNG(filename = 'floor_mode.png', options = {}) {
+    if (this._disposed) throw new DOMException('Viewer disposed', 'AbortError');
+    if (this._frameMetadata.playing) throw new Error('E_CAPTURE_PLAYING: stop playback before saving');
+    if (this._captureActive) throw new Error('E_CAPTURE_BUSY: another export is running');
+    this._captureActive = true;
+    try {
+      const blob = await canvasBlob(this._captureCanvas(options));
+      if (this._disposed) throw new DOMException('Viewer disposed', 'AbortError');
+      downloadBlob(blob, filename);
+      return blob;
+    } finally { this._captureActive = false; }
+  }
+
+  /** Real-time recording: onFrame receives elapsed wall seconds, never a
+   * claimed exact frame index. Caller restores its controller in finally.
+   */
+  async recordVideo({ duration = 4, fps = 30, width, height, background,
+    onFrame, onProgress, signal, filename = 'floor_mode' } = {}) {
+    const type = supportedVideoType();
+    if (!type || !HTMLCanvasElement.prototype.captureStream) throw new Error('E_VIDEO_UNSUPPORTED: use PNG in this browser');
+    if (this._frameMetadata.playing) throw new Error('E_CAPTURE_PLAYING: stop playback before recording');
+    if (this._captureActive) throw new Error('E_CAPTURE_BUSY: another export is running');
+    if (!Number.isFinite(duration) || duration <= 0 || duration > 120 || !Number.isInteger(fps) || fps < 1 || fps > 60) {
+      throw new Error('E_VIDEO_OPTIONS: duration must be 0–120 seconds and fps 1–60');
+    }
+    const aborted = () => { if (signal?.aborted || this._disposed) throw new DOMException('Recording cancelled', 'AbortError'); };
+    aborted();
+    const view = this.getViewState();
+    const controlsEnabled = this._controls.enabled;
+    this._captureActive = true;
+    this._controls.enabled = false;
+    let stream, recorder, timer, rejectWait;
+    const cancelWait = () => rejectWait?.(new DOMException('Recording cancelled', 'AbortError'));
+    this._cancelCapture = cancelWait;
+    signal?.addEventListener('abort', cancelWait, { once: true });
+    try {
+      onFrame?.(0);
+      const canvas = this._captureCanvas({ width, height, background });
+      stream = canvas.captureStream(fps);
+      recorder = new MediaRecorder(stream, { mimeType: type.mimeType });
+      const chunks = [];
+      recorder.addEventListener('dataavailable', event => { if (event.data.size) chunks.push(event.data); });
+      let recordingError;
+      recorder.addEventListener('error', event => { recordingError = event.error ?? new Error('E_VIDEO_RECORDING: recorder failed'); });
+      const finished = new Promise(resolve => recorder.addEventListener('stop', resolve, { once: true }));
+      recorder.start();
+      const start = performance.now();
+      let elapsed = 0;
+      while (elapsed < duration) {
+        aborted();
+        if (recordingError) throw recordingError;
+        await new Promise((resolve, reject) => { rejectWait = reject; timer = setTimeout(resolve, 1000 / fps); });
+        rejectWait = null;
+        aborted();
+        elapsed = Math.min(duration, (performance.now() - start) / 1000);
+        onFrame?.(elapsed);
+        this._captureCanvas({ width: canvas.width, height: canvas.height, background }, canvas);
+        onProgress?.(elapsed / duration);
+      }
+      if (recorder.state !== 'inactive') recorder.stop();
+      await finished;
+      aborted();
+      if (recordingError) throw recordingError;
+      const blob = new Blob(chunks, { type: recorder.mimeType || type.mimeType });
+      if (!blob.size) throw new Error('E_VIDEO_EMPTY: browser produced no recording');
+      downloadBlob(blob, `${filename.replace(/\.(webm|mp4)$/i, '')}.${type.extension}`);
+      return blob;
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', cancelWait);
+      if (recorder?.state !== 'inactive') recorder?.stop();
+      stream?.getTracks().forEach(track => track.stop());
+      this._cancelCapture = null;
+      this._captureActive = false;
+      if (this._controls && !this._disposed) {
+        this._controls.enabled = controlsEnabled;
+        this.setViewState(view);
+      }
+      this._requestRender?.();
+    }
   }
 
   /**
@@ -481,12 +723,16 @@ export class FloorViewer {
     if (this._deformedMaterial) {
       this._deformedMaterial.resolution.set(width, height);
     }
+    this._requestRender?.();
   }
 
   /**
    * ジオメトリ・マテリアル・レンダラーのリソース解放
    */
   dispose() {
+    this._disposed = true;
+    this._cancelCapture?.();
+    this._requestRender = null;
     // シーン内の全オブジェクトを破棄
     this._disposeGroup(this._undeformedGroup);
     this._disposeGroup(this._deformedGroup);
@@ -494,17 +740,21 @@ export class FloorViewer {
     this._disposeGroup(this._gridGroup);
     this._disposeGroup(this._labelsGroup);
     this._disposeGroup(this._highlightGroup);
+    this._disposeGroup(this._selectionGroup);
     this._highlightMesh = null;
     this._highlightNodeId = null;
 
     // コントロール破棄
     if (this._controls) {
+      this._controls.removeEventListener('change', this._controlsChanged);
       this._controls.dispose();
       this._controls = null;
     }
 
     // レンダラー破棄
     if (this._renderer) {
+      this._renderer.domElement.removeEventListener('pointerdown', this._pointerDown);
+      this._renderer.domElement.removeEventListener('pointerup', this._pointerUp);
       this._renderer.dispose();
       if (this._renderer.domElement && this._renderer.domElement.parentNode) {
         this._renderer.domElement.parentNode.removeChild(this._renderer.domElement);
@@ -560,6 +810,7 @@ export class FloorViewer {
     if (deformedColor !== undefined)   this._userLineStyle.deformedColor   = deformedColor;
     if (deformedWidth !== undefined)   this._userLineStyle.deformedWidth   = deformedWidth;
     this._applyUserLineStyle();
+    this._requestRender?.();
   }
 
   /** ユーザー指定スタイルをマテリアルに適用する（内部用） */
@@ -583,6 +834,7 @@ export class FloorViewer {
    * @param {boolean} isDark
    */
   setThemeColors(isDark) {
+    if (this._isDark === isDark) return;
     this._isDark = isDark;
 
     if (!this._renderer) return;
@@ -615,17 +867,18 @@ export class FloorViewer {
         }
       }
     });
-
+    this._requestRender?.();
   }
 
   /**
    * 1フレーム描画
    */
   render() {
-    if (!this._renderer) return;
-    this._controls.update();
+    if (!this._renderer) return false;
+    const changed = this._controls.update();
     this._renderer.render(this._scene, this._camera);
     this._css2dRenderer.render(this._scene, this._camera);
+    return changed;
   }
 
   // --- 内部ヘルパー ---
