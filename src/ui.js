@@ -277,6 +277,9 @@ function setupThemeControl(viewer) {
     const isDark = html.getAttribute('data-theme') !== 'dark';
     html.setAttribute('data-theme', isDark ? 'dark' : '');
     viewer.setThemeColors(isDark);
+    const colors = viewer.getLineColors();
+    $(DOM_IDS.colorUndeformed).value = colors.undeformedColor;
+    $(DOM_IDS.colorDeformed).value = colors.deformedColor;
     updateThemeButtonLabel();
     try { localStorage.setItem(STORAGE_KEYS.theme, isDark ? 'dark' : 'light'); } catch { /* storage unavailable */ }
   };

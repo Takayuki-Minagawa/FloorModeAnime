@@ -41,7 +41,10 @@ export function createApplication({ FloorViewer, loader = loadFloorSource, tools
     const el = document.getElementById('load-status');
     el.dataset.i18n = key;
     el.textContent = t(key);
-    document.getElementById('cancel-load').hidden = key !== 'loadReading' && key !== 'loadParsing' && key !== 'loadValidating';
+    const busy = ['loadReading', 'loadParsing', 'loadValidating'].includes(key);
+    document.getElementById('cancel-load').hidden = !busy;
+    document.getElementById('save-video').disabled = busy || !controller || !!toolsUI?.isRecording();
+    requestRender();
   }
   function requestRender() {
     if (!disposed && !frame && !document.hidden) frame = requestAnimationFrame(tick);
@@ -88,6 +91,7 @@ export function createApplication({ FloorViewer, loader = loadFloorSource, tools
         setStatus(stage === 'validate' || stage === 'validating' ? 'loadValidating' : 'loadParsing');
       } });
       if (disposed || current !== generation) return false;
+      if (toolsUI?.isRecording()) throw new Error('E_LOAD_RECORDING: cancel recording before replacing data');
       const nextController = new AnimationController(nextData);
       const oldTime = controller?.getTime();
       controller?.stop();

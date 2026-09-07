@@ -14,6 +14,7 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
   const on = (target, event, fn) => target.addEventListener(event, fn, { signal: events.signal });
   const response = controller.getDataKind() === 'response';
   let selected = controller.getNodeIds()[0], history = null, chart = null, chartKey = '', envelope = false;
+  let settingsLoad = null, settingsGeneration = 0;
   let recording = null, disposed = false, lastMetadata = '', peaks = response ? (data.peaks || computeResponsePeaks(data)) : null;
   const error = e => { $('tools-error').textContent = e.message || String(e); };
   $('tools-error').textContent = ''; $('video-status').textContent = '';
@@ -66,8 +67,12 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
   });
   on($('settings-file'), 'change', async event => {
     const files = Array.from(event.target.files); event.target.value = ''; if (!files.length) return;
+    const generation = ++settingsGeneration;
+    settingsLoad?.abort(); settingsLoad = new AbortController(); requestRender();
     try {
-      const [file] = await readTextFiles(files, events.signal);
+      const [file] = await readTextFiles(files, settingsLoad.signal);
+      if (disposed || generation !== settingsGeneration) return;
+      if (recording) throw new Error(t('busyOperation'));
       const state = validateSettings(JSON.parse(file.text), data);
       controller.stop();
       if (!response) { $('mode-select').value = String(state.mode); $('mode-select').dispatchEvent(new Event('change', { bubbles: true })); }
@@ -81,10 +86,12 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
       controller.setObservationPeriod(state.observationPeriod); $('observation-period').value = String(state.observationPeriod || 0);
       controller.setTime(state.time); viewer.setViewState(state.view); select(state.selectedNode);
       beforeCapture(); requestRender();
-    } catch (e) { if (e.name !== 'AbortError') error(e); }
+    } catch (e) { if (!disposed && generation === settingsGeneration && e.name !== 'AbortError') error(e); }
+    finally { if (generation === settingsGeneration) { settingsLoad = null; requestRender(); } }
   });
   on($('save-video'), 'click', async () => {
     if (recording) return;
+    if (pendingWork()) { error(new Error(t('busyOperation'))); return; }
     if (controller.isPlaying()) { error(new Error(t('alertPngStop'))); return; }
     const duration = Number($('video-duration').value);
     if (!Number.isFinite(duration) || duration < 1 || duration > 30) { error(new Error(t('invalidDuration'))); return; }
@@ -114,9 +121,13 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
     }
   });
   on($('cancel-video'), 'click', () => recording?.abort());
+  function pendingWork() {
+    return !!settingsLoad || comparison.isLoading() || ['loadReading', 'loadParsing', 'loadValidating'].includes(document.body.dataset.loadState);
+  }
   function update() {
     if (disposed) return;
     const lang = getLang();
+    if (!recording) $('save-video').disabled = pendingWork();
     const value = response ? controller.getResponseValue(selected) : controller.getNormalizedUz(selected);
     $('selected-value').textContent = `${t('nodeId')} ${selected}: ${value.toPrecision(6)} ${response ? controller.getResponseUnit() : t('normalizedValue')}`;
     const observation = controller.getObservationPeriod();
@@ -160,5 +171,5 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
     if (!recording) comparison.update();
   }
   update();
-  return { update, resize: () => { chartKey = ''; comparison.resize(); }, isRecording: () => !!recording, cancelRecording: () => recording?.abort(), dispose() { disposed = true; recording?.abort(); events.abort(); viewer.onNodeSelect(null); comparison.dispose(); } };
+  return { update, resize: () => { chartKey = ''; comparison.resize(); }, isRecording: () => !!recording, cancelRecording: () => recording?.abort(), dispose() { disposed = true; recording?.abort(); settingsLoad?.abort(); settingsGeneration++; events.abort(); viewer.onNodeSelect(null); comparison.dispose(); } };
 }

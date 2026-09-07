@@ -8,6 +8,7 @@ const STORAGE_KEY = STORAGE_KEYS.lang;
 
 const dict = {
   ja: {
+    busyOperation: 'ファイルの読込完了後に録画を開始してください。',
     loadReading: "ファイル読込中",
     loadParsing: "データ解析中",
     loadValidating: "整合性を確認中",
@@ -139,6 +140,7 @@ const dict = {
       '8. マウスドラッグで回転、右クリックドラッグでパン、スクロールでズームできます。',
   },
   en: {
+    busyOperation: 'Wait for file loading to finish before recording.',
     loadReading: "Reading files",
     loadParsing: "Parsing data",
     loadValidating: "Validating data",

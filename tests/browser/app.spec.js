@@ -250,3 +250,71 @@ test('cancelling video restores stopped time and controls without a download', a
   await expect(page.locator('#selected-node')).toHaveValue('1');
   expect(downloads).toEqual([]);
 });
+
+async function gateFileReading(page) {
+  await page.evaluate(() => {
+    window.__readGates = {};
+    const original = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = async function () {
+      await new Promise((resolve) => { window.__readGates[this.name] = resolve; });
+      return original.call(this);
+    };
+  });
+}
+
+test('pending main input disables recording until its data is committed', async ({ page }) => {
+  await page.locator('#capture-section summary').click();
+  await gateFileReading(page);
+  await page.locator('#file-input').setInputFiles(fixture('response_case.json'));
+  await page.waitForFunction(() => !!window.__readGates['response_case.json']);
+  await expect(page.locator('#save-video')).toBeDisabled();
+  await expect(page.locator('#file-name-display')).toHaveText('Test0202');
+  await page.evaluate(() => window.__readGates['response_case.json']());
+  await expect(page.locator('#file-name-display')).toHaveText('response_case.json');
+  await ready(page);
+  await expect(page.locator('#save-video')).toBeEnabled();
+});
+
+test('pending comparison input disables recording until its second view is ready', async ({ page }) => {
+  await loadSample(page, 'sample_case.json');
+  await page.locator('#capture-section summary').click();
+  await page.locator('#compare-section summary').click();
+  await gateFileReading(page);
+  await page.locator('#compare-files').setInputFiles(fixture('sample_case.json'));
+  await page.waitForFunction(() => !!window.__readGates['sample_case.json']);
+  await expect(page.locator('#save-video')).toBeDisabled();
+  await page.evaluate(() => window.__readGates['sample_case.json']());
+  await expect(page.locator('#comparison-container canvas')).toBeVisible();
+  await expect(page.locator('#save-video')).toBeEnabled();
+});
+
+test('pending settings disable recording and the latest selection wins out-of-order reads', async ({ page }) => {
+  await loadSample(page, 'sample_case.json');
+  await page.locator('#settings-section summary').click();
+  await page.locator('#capture-section summary').click();
+  const { bytes } = await downloadBytes(page, '#save-settings');
+  const original = JSON.parse(bytes.toString('utf8'));
+  await page.evaluate(() => {
+    window.__settingsReadGates = {};
+    const originalRead = FileReader.prototype.readAsText;
+    FileReader.prototype.readAsText = function (file) {
+      window.__settingsReadGates[file.name] = () => new Promise((resolve) => {
+        this.addEventListener('loadend', () => resolve(), { once: true });
+        originalRead.call(this, file);
+      });
+    };
+  });
+  const payload = (name, scale) => ({ name, mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ ...original, scale })) });
+  await page.locator('#settings-file').setInputFiles(payload('older.json', 0.7));
+  await page.waitForFunction(() => !!window.__settingsReadGates['older.json']);
+  await expect(page.locator('#save-video')).toBeDisabled();
+  await page.locator('#settings-file').setInputFiles(payload('newer.json', 2.4));
+  await page.waitForFunction(() => !!window.__settingsReadGates['newer.json']);
+  await expect(page.locator('#save-video')).toBeDisabled();
+  await page.evaluate(() => window.__settingsReadGates['newer.json']());
+  await expect(page.locator('#scale-slider')).toHaveValue('2.4');
+  await expect(page.locator('#save-video')).toBeEnabled();
+  await page.evaluate(() => window.__settingsReadGates['older.json']());
+  await expect(page.locator('#scale-slider')).toHaveValue('2.4');
+  await expect(page.locator('#tools-error')).toBeEmpty();
+});

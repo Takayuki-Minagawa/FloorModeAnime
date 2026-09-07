@@ -33,7 +33,7 @@ export function setupComparison({ viewer, controller, data, on, requestRender, e
   on($('compare-files'), 'change', async event => {
     const files = Array.from(event.target.files); event.target.value = ''; if (!files.length) return;
     const id = ++generation; load?.abort(); load = new AbortController();
-    $('compare-status').textContent = t('loadReading');
+    $('compare-status').textContent = t('loadReading'); requestRender();
     try {
       const candidate = await loadFloorSource(files, { signal: load.signal });
       const result = compareModes(data, candidate);
@@ -50,6 +50,7 @@ export function setupComparison({ viewer, controller, data, on, requestRender, e
       $('compare-mode').replaceChildren(...otherController.getModeList().map(mode => new Option(`${mode} (${other.freqHz.get(mode).toFixed(2)} Hz)`, String(mode))));
       lastKey = ''; table(); requestRender();
     } catch (e) { if (id === generation && e.name !== 'AbortError') { error(e); $('compare-status').textContent = e.message; } }
+    finally { if (id === generation) { load = null; requestRender(); } }
   });
   on($('clear-compare'), 'click', clear);
   function update() {
@@ -76,5 +77,5 @@ export function setupComparison({ viewer, controller, data, on, requestRender, e
     syncing = false;
     if (damping) { cameraFromOther = true; requestRender(); }
   }
-  return { update, dispose: clear, resize() { secondary?.resize(); } };
+  return { update, isLoading: () => !!load, dispose: clear, resize() { secondary?.resize(); } };
 }

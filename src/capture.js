@@ -47,7 +47,8 @@ export function responseColorStops(min, max) {
   const white = new Color(0xf3f5f7), blue = new Color(0x2554c7), red = new Color(0xd52b1e);
   const color = new Color();
   return Array.from({ length: 21 }, (_, i) => {
-    const value = (min + (max - min) * i / 20) / maxAbs;
+    const ratio = i / 20;
+    const value = (min / maxAbs) * (1 - ratio) + (max / maxAbs) * ratio;
     return [i / 20, color.copy(white).lerp(value < 0 ? blue : red, Math.abs(value)).getStyle()];
   });
 }

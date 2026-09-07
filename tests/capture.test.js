@@ -53,3 +53,16 @@ describe('capture contracts', () => {
     expect(responseGradient(0, 2)).toContain(`${new Color(0xf3f5f7).getStyle()} 0%`);
   });
 });
+
+
+it.each([1e308, Number.MAX_VALUE])('keeps the legend finite for opposite response extrema ±%s', magnitude => {
+  const stops = responseColorStops(-magnitude, magnitude);
+  expect(stops).toHaveLength(21);
+  for (const [offset, color] of stops) {
+    expect(Number.isFinite(offset)).toBe(true);
+    expect(color).toMatch(/^rgb\(\d+,\d+,\d+\)$/);
+  }
+  expect(stops[0][1]).toBe(new Color(0x2554c7).getStyle());
+  expect(stops[10][1]).toBe(new Color(0xf3f5f7).getStyle());
+  expect(stops[20][1]).toBe(new Color(0xd52b1e).getStyle());
+});

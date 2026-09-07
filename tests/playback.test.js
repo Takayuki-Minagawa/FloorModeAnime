@@ -126,3 +126,19 @@ describe('shared frame calculation', () => {
     expect(c.getResponseValue(1)).toBe(0);
   });
 });
+
+
+it.each([1e308, Number.MAX_VALUE])('interpolates opposite finite physical extrema ±%s without overflow', magnitude => {
+  const c = new AnimationController(data({ ...response, times: [0, 2], values: [[-magnitude, magnitude], [magnitude, -magnitude]] }));
+  c.setTime(1);
+  expect(c.getResponseValue(1)).toBe(0);
+  expect(c.getResponseValue(2)).toBe(0);
+  expect(c.getCurrentResponseRange()).toEqual({ min: 0, max: 0 });
+  c.setTime(0.5);
+  expect(c.getResponseValue(1) / magnitude).toBeCloseTo(-0.5, 12);
+  expect(Number.isFinite(c.getDisplacedZ(1))).toBe(true);
+  c.setTime(0);
+  expect(c.getResponseValue(1)).toBe(-magnitude);
+  c.setTime(2);
+  expect(c.getResponseValue(1)).toBe(magnitude);
+});

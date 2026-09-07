@@ -110,6 +110,25 @@ describe('application lifecycle with real shell and playback UI', () => {
     expect(app.getState().data).toBe(data);
   });
 
+  it('rechecks recording before committing a load that began while not recording', async () => {
+    const slow = deferred();
+    const original = makeData('Original');
+    const app = create(vi.fn().mockResolvedValueOnce(original).mockImplementationOnce(() => slow.promise));
+    await app.load('original', 'original.json');
+    const controller = app.getState().controller;
+    controller.setTime(0.025);
+    const pending = app.load('next', 'next.json');
+    tools.isRecording = () => true;
+    slow.resolve(makeData('Replacement'));
+    expect(await pending).toBe(false);
+    expect(app.getState().data).toBe(original);
+    expect(app.getState().controller).toBe(controller);
+    expect(controller.getTime()).toBe(0.025);
+    expect(viewer.loadFloorData).toHaveBeenCalledTimes(1);
+    expect(tools.dispose).not.toHaveBeenCalled();
+    expect(document.getElementById('file-name-display').textContent).toBe('original.json');
+  });
+
   it('restores previous geometry, time and file name after geometry construction fails', async () => {
     const a = makeData('A'), b = makeData('B');
     const app = create(vi.fn().mockResolvedValueOnce(a).mockResolvedValueOnce(b));

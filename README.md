@@ -222,7 +222,7 @@ npm run benchmark:browser # ローカルVite＋Chromiumで読込・RAF・ヒー�
 
 ### Ver. 1.3.0 の実行記録（2026-09-07）
 
-Node.js 22.18.0／Apple M4 Maxで、lint・203単体／統合テスト・build・manifest再生成差分照合を通過しました。dependency auditは脆弱性0件。Chromium／Firefox／WebKitで各10件、合計30件のブラウザテストが成功しています。WebKitによる検証は実機Safariの検証と区別します。日本語PNGの凡例・節点番号・条件表示は出力画像でも確認しました。
+Node.js 22.18.0／Apple M4 Maxで、lint・210単体／統合テスト・build・manifest再生成差分照合を通過しました。dependency auditは脆弱性0件。Chromium／Firefox／WebKitで各13件、合計39件のブラウザテストが成功しています。WebKitによる検証は実機Safariの検証と区別します。日本語PNGの凡例・節点番号・条件表示は出力画像でも確認しました。
 
 性能は120時刻の合成応答、1440×1000・DPR1のChromium／SwiftShaderで計測しました。停止後0.5秒間のRAF呼出しは全サイズで0です。
 
