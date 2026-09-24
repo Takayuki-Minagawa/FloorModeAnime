@@ -59,3 +59,64 @@ export function drawHistory(svg, samples, unit, title) {
     },
   };
 }
+
+/** Three physical histories share axes so signed differences stay comparable. */
+export function drawComparisonHistory(svg, rows, unit, title, labels) {
+  const keys = ['valueA', 'valueB', 'delta'];
+  const first = rows[0].time, last = rows.at(-1).time;
+  let min = 0, max = 0;
+  for (const row of rows) for (const key of keys) { min = Math.min(min, row[key]); max = Math.max(max, row[key]); }
+  const scale = Math.max(Math.abs(min), Math.abs(max)) || 1;
+  const padding = Math.max((max - min) / scale * 0.08, 0.02);
+  const lo = min / scale - padding, hi = max / scale + padding;
+  const x = time => 64 + fractionBetween(time, first, last) * 516;
+  const y = value => 196 - (value / scale - lo) / (hi - lo) * 160;
+  svg.replaceChildren();
+  const add = (tag, attributes, text) => {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, String(value)));
+    if (text !== undefined) node.textContent = text;
+    svg.appendChild(node);
+  };
+  add('title', {}, title);
+  add('path', { d: 'M64,36V196H580', fill: 'none', stroke: 'currentColor' });
+  add('text', { x: 8, y: 20 }, unit);
+  add('text', { x: 5, y: 43 }, max.toPrecision(3));
+  add('text', { x: 5, y: 196 }, min.toPrecision(3));
+  add('text', { x: 64, y: 220 }, `${first.toPrecision(4)} s`);
+  add('text', { x: 500, y: 220 }, `${last.toPrecision(4)} s`);
+  keys.forEach((key, index) => {
+    const values = reduceHistory(rows.map(row => ({ time: row.time, value: row[key] })));
+    add('path', { d: values.map((point, i) => `${i ? 'L' : 'M'}${x(point.time).toFixed(2)},${y(point.value).toFixed(2)}`).join(''), class: `history-series-${index}` });
+    add('text', { x: 160 + index * 130, y: 20, class: `history-label-${index}` }, labels[index]);
+  });
+  add('line', { y1: 36, y2: 196, class: 'history-cursor' });
+  return {
+    setTime(time) {
+      const cursor = svg.querySelector('.history-cursor');
+      cursor?.setAttribute('x1', x(time)); cursor?.setAttribute('x2', x(time));
+    },
+  };
+}
+
+export function drawSpectrum(svg, spectrum, unit, title) {
+  const maxPower = Math.max(...spectrum.bins.map(bin => bin.psd), 0);
+  const x = frequency => 64 + frequency / spectrum.nyquistHz * 516;
+  const y = power => 196 - power / (maxPower || 1) * 160;
+  svg.replaceChildren();
+  const add = (tag, attributes, text) => {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, String(value)));
+    if (text !== undefined) node.textContent = text;
+    svg.appendChild(node);
+  };
+  add('title', {}, title);
+  add('path', { d: 'M64,36V196H580', fill: 'none', stroke: 'currentColor' });
+  add('text', { x: 8, y: 20 }, `(${unit})²/Hz`);
+  add('text', { x: 5, y: 43 }, maxPower.toPrecision(3));
+  add('text', { x: 64, y: 220 }, '0 Hz');
+  add('text', { x: 470, y: 220 }, `${spectrum.nyquistHz.toPrecision(4)} Hz`);
+  add('path', { d: spectrum.bins.map((bin, index) =>
+    `${index ? 'L' : 'M'}${x(bin.frequencyHz).toFixed(2)},${y(bin.psd).toFixed(2)}`).join(''),
+  class: 'history-line' });
+}

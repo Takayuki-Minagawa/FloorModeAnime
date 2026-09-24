@@ -9,7 +9,7 @@ export const MODE_DISPLAY_CLAIM =
   'normalized display coordinates (L/10 scaled), not physical response';
 
 export const RESPONSE_VALUE_CLAIM =
-  'physical response archive values; display geometry may be normalized separately';
+  'physical response archive values; only displacement may alter display geometry';
 
 /**
  * Build a deterministic CSV/JSON export without touching the DOM.

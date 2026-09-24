@@ -35,6 +35,7 @@ describe('display exports', () => {
     expect(json.unit).toBe('m/s^2');
     expect(json.display_normalized).toBe(false);
     expect(center.response_value).toBe(-0.11);
-    expect(center.display_offset).toBe(center.response_value);
+    expect(center.display_offset).toBe(0);
+    expect(center.display_z).toBe(center.base_z);
   });
 });

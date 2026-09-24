@@ -134,6 +134,7 @@ export const DOM_IDS = {
   chkGrid: 'chk-grid',
   chkNodeIds: 'chk-node-ids',
   chkHighlight: 'chk-highlight',
+  chkModeColors: 'chk-mode-colors',
   colorUndeformed: 'color-undeformed',
   widthUndeformed: 'width-undeformed',
   widthUndeformedVal: 'width-undeformed-val',

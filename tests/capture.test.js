@@ -49,6 +49,7 @@ describe('capture contracts', () => {
     expect(stops[20][1]).toBe(new Color(0xd52b1e).getStyle());
     expect(stops[15][1]).toBe(new Color(0xf3f5f7).lerp(new Color(0xd52b1e), 0.5).getStyle());
     expect(responseColorStops(0, 2)[0][1]).toBe(new Color(0xf3f5f7).getStyle());
+    expect(responseColorStops(0, 2).at(-1)[1]).toBe(new Color(0x08519c).getStyle());
     expect(new Set(responseColorStops(0, 0).map(stop => stop[1])).size).toBe(1);
     expect(responseGradient(0, 2)).toContain(`${new Color(0xf3f5f7).getStyle()} 0%`);
   });

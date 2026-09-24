@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { parseFloorData } from '../src/parser.js';
-import { compareModes, computeResponsePeaks, getNodeHistory, getDataIdentity } from '../src/analysis.js';
+import { compareModes, compareResponses, computeResponsePeaks, getNodeHistory, getDataIdentity } from '../src/analysis.js';
 
 const read = (name) => parseFloorData(readFileSync(new URL(`../public/Sample/${name}`, import.meta.url), 'utf8'));
 const modes = (vectors) => {
@@ -59,6 +59,39 @@ describe('vertical-component MAC', () => {
     b.meta.verticalDof = 'uz';
     b.nodes.delete(1);
     expect(() => compareModes(a, b)).toThrow('E_COMPARE_NODES');
+  });
+});
+
+describe('physical response comparison', () => {
+  it('calculates signed B-A values by node ID and reports the earliest maximum', () => {
+    const a = read('response_case.json'), b = read('response_case.json');
+    b.response.caseId = 'case-B';
+    b.response.nodeOrder.reverse();
+    b.response.values = b.response.values.map(row => [...row].reverse());
+    b.response.values[2][b.response.nodeOrder.indexOf(5)] += 0.03;
+    const result = compareResponses(a, b);
+    expect(result.caseB).toBe('case-B');
+    expect(result.valueAt(5, 2).delta).toBeCloseTo(0.03);
+    expect(result.maxAbs).toBeCloseTo(0.03);
+    expect(result.maxNodeId).toBe(5);
+    expect(result.maxTime).toBe(a.response.times[2]);
+    expect(result.history(5)[2].delta).toBeCloseTo(0.03);
+  });
+
+  it('rejects unlike quantities, geometry, faces and time grids', () => {
+    const a = read('response_case.json'), b = read('response_case.json');
+    expect(compareResponses(a, b).maxAbs).toBe(0);
+    b.response.quantity = 'vertical_velocity';
+    expect(() => compareResponses(a, b)).toThrow('E_COMPARE_QUANTITY');
+    b.response.quantity = a.response.quantity;
+    b.nodes.get(1).x += 0.01;
+    expect(() => compareResponses(a, b)).toThrow('E_COMPARE_COORDINATES');
+    b.nodes.get(1).x = a.nodes.get(1).x;
+    b.faces[0].nodeIds.reverse();
+    expect(() => compareResponses(a, b)).toThrow('E_COMPARE_FACES');
+    b.faces[0].nodeIds.reverse();
+    b.response.times[1] += 0.001;
+    expect(() => compareResponses(a, b)).toThrow('E_COMPARE_TIME');
   });
 });
 

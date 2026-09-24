@@ -2,10 +2,12 @@
 import { t, getLang } from './i18n.js';
 import { computeResponsePeaks, getNodeHistory } from './analysis.js';
 import { playbackAction } from './playback.js';
-import { drawHistory } from './history-chart.js';
+import { drawHistory, drawSpectrum } from './history-chart.js';
+import { computeWelchPsd } from './spectrum.js';
 import { downloadBlob, readTextFiles } from './downloads.js';
 import { buildSettings, validateSettings, SETTING_IDS } from './settings.js';
 import { setupComparison } from './compare-ui.js';
+import { setupResponseComparison } from './response-compare-ui.js';
 import { responseGradient } from './capture.js';
 
 export function setupAnalysisTools({ viewer, controller, data, requestRender, beforeCapture }) {
@@ -14,27 +16,36 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
   const on = (target, event, fn) => target.addEventListener(event, fn, { signal: events.signal });
   const response = controller.getDataKind() === 'response';
   let selected = controller.getNodeIds()[0], history = null, chart = null, chartKey = '', envelope = false;
+  let spectrum = null, spectrumKey = '';
   let settingsLoad = null, settingsGeneration = 0;
   let recording = null, disposed = false, lastMetadata = '', peaks = response ? (data.peaks || computeResponsePeaks(data)) : null;
   const error = e => { $('tools-error').textContent = e.message || String(e); };
   $('tools-error').textContent = ''; $('video-status').textContent = '';
   $('history-controls').hidden = !response;
   $('compare-section').hidden = response;
+  $('response-compare-section').hidden = !response;
   $('observation-controls').hidden = response;
   $('observation-period').value = '0';
   $('show-envelope').checked = false;
+  $('spectrum-section').open = false;
+  $('spectrum-status').textContent = '';
+  $('spectrum-csv').disabled = true;
   $('selected-node').value = String(selected);
   // Numeric entry works for all IDs; cap datalist DOM size for large models.
   $('node-options').replaceChildren(...controller.getNodeIds().slice(0, 500).map(id => new Option(String(id), String(id))));
   viewer.setSelectedNode(selected);
-  const comparison = setupComparison({ viewer, controller, data, on, requestRender, error });
   const select = id => {
     if (recording) return;
     if (!data.nodes.has(id)) { error(new Error(`E_NODE_SELECT: ${t('invalidNode')}`)); return; }
     $('tools-error').textContent = ''; selected = id; $('selected-node').value = String(id);
-    viewer.setSelectedNode(id); chartKey = ''; requestRender();
+    viewer.setSelectedNode(id); chartKey = ''; spectrumKey = ''; spectrum = null;
+    $('spectrum-csv').disabled = true; requestRender();
   };
   const seek = time => { if (recording) return; playbackAction(controller, 'seek', time); requestRender(); };
+  const comparison = response
+    ? setupResponseComparison({ viewer, controller, data, on, requestRender, error,
+      getSelectedNode: () => selected, seek, beforeCapture })
+    : setupComparison({ viewer, controller, data, on, requestRender, error });
   on($('selected-node'), 'change', () => select(Number($('selected-node').value)));
   viewer.onNodeSelect(select);
   on($('observation-period'), 'change', () => controller.setObservationPeriod(Number($('observation-period').value) || null));
@@ -52,6 +63,17 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
     const rows = getNodeHistory(data, selected);
     const comment = JSON.stringify({ case_id: data.response.caseId, node_id: selected, quantity: data.response.quantity, unit: data.response.unit, interpolated: false });
     downloadBlob(`# ${comment}\ntime_s,node_id,value\n${rows.map(p => `${p.time},${selected},${p.value}`).join('\n')}`, `history_node${selected}.csv`, 'text/csv');
+  });
+  on($('spectrum-section'), 'toggle', requestRender);
+  on($('spectrum-csv'), 'click', () => {
+    if (!spectrum) return;
+    const metadata = JSON.stringify({ case_id: data.response.caseId, node_id: selected,
+      quantity: data.response.quantity, response_unit: data.response.unit,
+      psd_unit: `(${data.response.unit})^2/Hz`, sample_rate_hz: spectrum.sampleRateHz,
+      window: spectrum.window, detrend: spectrum.detrend, segment_length: spectrum.segmentLength,
+      overlap: spectrum.overlap, segments: spectrum.segments });
+    downloadBlob(`# ${metadata}\nfrequency_hz,psd\n${spectrum.bins.map(bin =>
+      `${bin.frequencyHz},${bin.psd}`).join('\n')}`, `psd_node${selected}.csv`, 'text/csv');
   });
   on($('show-envelope'), 'change', () => {
     if (!response) { $('show-envelope').checked = false; return; }
@@ -127,6 +149,9 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
   function update() {
     if (disposed) return;
     const lang = getLang();
+    if (!response && $('chk-mode-colors').checked) {
+      document.querySelector('.mode-gradient').style.background = responseGradient(-1, 1);
+    }
     if (!recording) $('save-video').disabled = pendingWork();
     const value = response ? controller.getResponseValue(selected) : controller.getNormalizedUz(selected);
     $('selected-value').textContent = `${t('nodeId')} ${selected}: ${value.toPrecision(6)} ${response ? controller.getResponseUnit() : t('normalizedValue')}`;
@@ -145,6 +170,27 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
         $('peak-values').textContent = `${t('peakMinimum')}: ${peak.min.toPrecision(5)} @ ${peak.timeOfMin.toPrecision(5)} s; ${t('peakMaximum')}: ${peak.max.toPrecision(5)} @ ${peak.timeOfMax.toPrecision(5)} s; |max|: ${peak.maxAbs.toPrecision(5)} ${controller.getResponseUnit()} @ ${peak.timeOfMaxAbs.toPrecision(5)} s`;
       }
       chart.setTime(controller.getTime());
+      if ($('spectrum-section').open && spectrumKey !== key) {
+        spectrumKey = key;
+        try {
+          spectrum = computeWelchPsd(history);
+          drawSpectrum($('spectrum-chart'), spectrum, controller.getResponseUnit(),
+            t('spectrumTitle'));
+          $('spectrum-chart').setAttribute('aria-label', t('spectrumTitle'));
+          $('spectrum-status').textContent = t('spectrumStatus', {
+            fs: spectrum.sampleRateHz.toPrecision(5), nyquist: spectrum.nyquistHz.toPrecision(5),
+            resolution: spectrum.resolutionHz.toPrecision(5), length: spectrum.segmentLength,
+            segments: spectrum.segments,
+            peak: spectrum.dominantHz === null ? t('spectrumNoPeak') : spectrum.dominantHz.toPrecision(5),
+          });
+          $('spectrum-csv').disabled = false;
+        } catch (failure) {
+          spectrum = null;
+          $('spectrum-chart').replaceChildren();
+          $('spectrum-status').textContent = t('spectrumUnavailable', { reason: failure.message });
+          $('spectrum-csv').disabled = true;
+        }
+      }
       const range = envelope ? { min: 0, max: peaks.global.maxAbs } : controller.getResponseRange();
       const gradient = document.querySelector('.response-gradient');
       const colorKey = `${range.min}:${range.max}`;
@@ -154,18 +200,23 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
         $('response-legend-title').textContent = `${t('envelope')} [${controller.getResponseUnit()}]`;
         $('response-legend-min').textContent = '0'; $('response-legend-max').textContent = peaks.global.maxAbs.toPrecision(4);
       } else {
-        $('display-meaning').textContent = t(controller.isDisplayNormalized() ? 'displayMeaningResponseNormalized' : 'displayMeaningResponsePhysical');
+        const meaning = controller.getResponseQuantity() === 'vertical_displacement'
+          ? (controller.isDisplayNormalized() ? 'displayMeaningResponseNormalized' : 'displayMeaningResponsePhysical')
+          : 'displayMeaningResponseScalar';
+        $('display-meaning').textContent = t(meaning);
       }
     }
     const lines = [
       response ? `${controller.getResponseQuantity()} [${controller.getResponseUnit()}]` : `${t('labelMode')} ${controller.getCurrentMode()} · f = ${controller.getFreqHz().toFixed(4)} Hz`,
-      `t = ${controller.getTime().toFixed(6)} s · ${t('labelScale')} ${controller.getScale().toFixed(1)}`,
+      `t = ${controller.getTime().toFixed(6)} s${!response || controller.getResponseQuantity() === 'vertical_displacement'
+        ? ` · ${t('labelScale')} ${controller.getScale().toFixed(1)}` : ''}`,
       $('display-meaning').textContent,
       $('selected-value').textContent,
+      ...(!response && $('chk-mode-colors').checked ? [t('modeColorLegend')] : []),
       ...(observation ? [$('observation-status').textContent] : []),
       `ID: ${data.identity || data.meta?.title || ''}`,
     ];
-    const metadata = { title: data.meta?.title || data.response?.caseId || 'Floor Mode Anime', lines, playing: controller.isPlaying(), legend: response ? { ...(envelope ? { min: 0, max: peaks.global.maxAbs } : controller.getResponseRange()), unit: controller.getResponseUnit(), label: envelope ? t('envelope') : controller.getResponseQuantity() } : undefined };
+    const metadata = { title: data.meta?.title || data.response?.caseId || 'Floor Mode Anime', lines, playing: controller.isPlaying(), legend: response ? { ...(envelope ? { min: 0, max: peaks.global.maxAbs } : controller.getResponseRange()), unit: controller.getResponseUnit(), label: envelope ? t('envelope') : controller.getResponseQuantity() } : $('chk-mode-colors').checked ? { min: -1, max: 1, unit: '', label: 'uz/Umax' } : undefined };
     const encoded = JSON.stringify(metadata);
     if (encoded !== lastMetadata) { viewer.setFrameMetadata(metadata); lastMetadata = encoded; }
     if (!recording) comparison.update();

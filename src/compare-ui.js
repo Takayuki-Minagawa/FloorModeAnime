@@ -63,6 +63,7 @@ export function setupComparison({ viewer, controller, data, on, requestRender, e
     if (otherController.getCurrentMode() !== mode) otherController.setMode(mode);
     const phase = 2 * Math.PI * controller.getFreqHz() * controller.getTime() + controller.getPhase();
     const sign = $('compare-sign').checked ? -1 : 1;
+    secondary.setModeColoring?.($('chk-mode-colors')?.checked ?? false, mode, sign);
     const scale = controller.getScale() * computeFloorMetrics(data.nodes).aRef;
     secondary.updateDeformed(id => other.nodes.get(id).z + sign * scale * otherController.getNormalizedUz(id) * Math.sin(phase));
     secondary.setVisibility({ labels: $('chk-node-ids').checked && !controller.isPlaying(), axes: $('chk-axes').checked, grid: $('chk-grid').checked, undeformed: $('chk-undeformed').checked, deformed: $('chk-deformed').checked });

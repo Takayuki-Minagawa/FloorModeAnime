@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FloorViewer } from '../src/viewer.js';
 import { PerspectiveCamera, Vector3 } from 'three';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -116,5 +118,33 @@ describe('demand-driven viewer state', () => {
     viewer.setVisibility({ grid: false });
     viewer.setVisibility({ grid: false });
     expect(viewer._requestRender).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('signed modal line coloring', () => {
+  it('colors endpoint eigenvector values independently of phase and restores solid style', () => {
+    const geometry = new LineSegmentsGeometry();
+    geometry.setPositions([0, 0, 0, 1, 0, 0, 1, 0, 0, 2, 0, 0]);
+    const material = new LineMaterial({ color: 0xff4444, linewidth: 3 });
+    const viewer = Object.create(FloorViewer.prototype);
+    Object.assign(viewer, { _dataKind: 'mode', _deformedGeometry: geometry,
+      _deformedMaterial: material, _deformedVertexMap: [
+        { nodeI: 1, nodeJ: 2 }, { nodeI: 2, nodeJ: 3 },
+      ], _floorData: { modes: new Map([[1, new Map([[1, -1], [2, 0], [3, 1]])]]) },
+      _modeColorKey: '', _modeColoring: false,
+      _userLineStyle: { deformedColor: '#ff4444' }, _isDark: false,
+      _theme: () => ({ deformed: 0xff4444 }), _requestRender: vi.fn() });
+    // Color is required by the real viewer; avoid a WebGL context in this unit test.
+    viewer._colorScratch = material.color.clone();
+    viewer.setModeColoring(true, 1);
+    const first = geometry.getAttribute('instanceColorStart');
+    expect(material.vertexColors).toBe(true);
+    expect(first.getZ(0)).toBeGreaterThan(first.getX(0));
+    viewer.setModeColoring(true, 1, -1);
+    const reversed = geometry.getAttribute('instanceColorStart');
+    expect(reversed.getX(0)).toBeGreaterThan(reversed.getZ(0));
+    viewer.setModeColoring(false, 1);
+    expect(material.vertexColors).toBe(false);
+    expect('#' + material.color.getHexString()).toBe('#ff4444');
   });
 });

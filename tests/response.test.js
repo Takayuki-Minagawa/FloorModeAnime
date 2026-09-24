@@ -32,11 +32,13 @@ describe('floor-response-archive/1', () => {
     expect(controller.getResponseValue(5)).toBeCloseTo(-0.014, 12);
   });
 
-  it('uses L/10 only for normalized shape presentation', () => {
+  it('keeps acceleration on the base floor while retaining physical scalar values', () => {
     const controller = new AnimationController(parseFloorData(responseText));
     controller.setTime(0.1);
-    // L_floor=6m, A_ref=0.6m; archive max abs=0.11.
-    expect(controller.getDisplayOffset(5)).toBeCloseTo(-0.6, 12);
+    expect(controller.getResponseValue(5)).toBe(-0.11);
+    expect(controller.getDisplayOffset(5)).toBe(0);
+    expect(controller.getDisplacedZ(5)).toBe(0);
+    expect(controller.isDisplayNormalized()).toBe(false);
   });
 
   it('uses a symmetric archive-wide range for the diverging contour and legend', () => {
@@ -44,12 +46,14 @@ describe('floor-response-archive/1', () => {
     expect(controller.getResponseRange()).toEqual({ min: -0.11, max: 0.11 });
   });
 
-  it('matches the response archive exactly when display normalization is OFF', () => {
-    const controller = new AnimationController(parseFloorData(responseText));
+  it('uses physical metres only for displacement and L/10 only for its presentation', () => {
+    const raw = responseObject();
+    raw.quantity = 'vertical_displacement';
+    raw.units.response = 'm';
+    const controller = new AnimationController(parseFloorData(JSON.stringify(raw)));
     controller.setTime(0.1);
-    controller.setScale(3);
+    expect(controller.getDisplayOffset(5)).toBeCloseTo(-0.6, 12);
     controller.setDisplayNormalized(false);
-
     expect(controller.getDisplayOffset(5)).toBe(controller.getResponseValue(5));
     expect(controller.getDisplayOffset(5)).toBe(-0.11);
     expect(controller.getDisplacedZ(5)).toBe(-0.11);
