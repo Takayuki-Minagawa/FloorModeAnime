@@ -25,6 +25,7 @@ export function setupResponseComparison({ viewer, controller, data, on, requestR
     $('response-compare-chart').replaceChildren();
     $('response-compare-csv').disabled = true;
     $('response-compare-png').disabled = true;
+    $('show-envelope').disabled = false;
     viewer.resize(); requestRender();
   };
 
@@ -51,6 +52,11 @@ export function setupResponseComparison({ viewer, controller, data, on, requestR
       secondary.setViewState(viewer.getViewState());
       viewer.resize(); secondary.resize();
       secondary.setRenderRequest(() => { if (!syncing) cameraFromOther = true; requestRender(); });
+      if ($('show-envelope').checked) {
+        $('show-envelope').checked = false;
+        $('show-envelope').dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      $('show-envelope').disabled = true;
       $('response-compare-csv').disabled = false;
       $('response-compare-png').disabled = false;
       chartKey = '';
@@ -128,5 +134,6 @@ export function setupResponseComparison({ viewer, controller, data, on, requestR
     if (damping) { cameraFromOther = true; requestRender(); }
   }
 
-  return { update, isLoading: () => !!load, resize: () => secondary?.resize(), dispose: clear };
+  return { update, isLoading: () => !!load, isActive: () => !!comparison,
+    resize: () => secondary?.resize(), dispose: clear };
 }

@@ -191,9 +191,12 @@ test('signed mode coloring survives mode and time changes and appears in capture
 
 test('response comparison keeps B minus A values, exports CSV, and rejects mismatched time', async ({ page }) => {
   await loadSample(page, 'response_case.json');
+  await page.locator('#show-envelope').check();
   await page.locator('#response-compare-section summary').click();
   await page.locator('#response-compare-files').setInputFiles(fixture('response_case.json'));
   await expect(page.locator('#comparison-container canvas')).toBeVisible();
+  await expect(page.locator('#show-envelope')).not.toBeChecked();
+  await expect(page.locator('#show-envelope')).toBeDisabled();
   await expect(page.locator('#response-compare-status')).toContainText('0.0000');
   await setRange(page, '#time-slider', 0.1);
   const { bytes } = await downloadBytes(page, '#response-compare-csv');
@@ -213,6 +216,7 @@ test('response comparison keeps B minus A values, exports CSV, and rejects misma
   await expect(page.locator('#comparison-container canvas')).toBeVisible();
   await page.locator('#clear-response-compare').click();
   await expect(page.locator('#comparison-container')).toBeHidden();
+  await expect(page.locator('#show-envelope')).toBeEnabled();
 });
 
 test('response spectrum reports short data and exports Welch PSD for uniform samples', async ({ page }) => {

@@ -113,7 +113,11 @@ export function compareResponses(dataA, dataB) {
   if (a.quantity !== b.quantity || a.unit !== b.unit) {
     throw new Error('E_COMPARE_QUANTITY: response quantities and units must match');
   }
-  if (canonicalJson(a.coordinates) !== canonicalJson(b.coordinates)) {
+  const responseCoordinateContract = response => ({
+    verticalAxis: response.coordinates?.verticalAxis,
+    handedness: response.coordinates?.rightHanded === true ? 'right' : response.coordinates?.handedness,
+  });
+  if (canonicalJson(responseCoordinateContract(a)) !== canonicalJson(responseCoordinateContract(b))) {
     throw new Error('E_COMPARE_COORDINATES: coordinate contracts differ');
   }
   const nodeIds = [...dataA.nodes.keys()].sort((x, y) => x - y);

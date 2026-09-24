@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { reduceHistory, drawHistory } from '../src/history-chart.js';
+import { reduceHistory, drawHistory, drawComparisonHistory } from '../src/history-chart.js';
 
 const svg = () => document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 
@@ -59,4 +59,15 @@ describe('peak-preserving history display', () => {
     expect(chart.timeAt(1)).toBe(1e308);
     expect(canvas.querySelector('.history-line').getAttribute('d')).toContain('L322.00,');
   });
+});
+
+it('keeps comparison paths finite when the full physical span overflows', () => {
+  const canvas = svg();
+  const rows = [
+    { time: 0, valueA: -1e308, valueB: -9e307, delta: 1e307 },
+    { time: 1, valueA: 9e307, valueB: 1e308, delta: 1e307 },
+  ];
+  const chart = drawComparisonHistory(canvas, rows, 'm', 'Extreme response', ['A', 'B', 'B−A']);
+  chart.setTime(0.5);
+  expect(canvas.innerHTML).not.toMatch(/NaN|Infinity/);
 });

@@ -37,7 +37,7 @@ beforeEach(() => {
     <select id="capture-background"><option value=""></option></select>
     <input id="chk-node-ids" type="checkbox" checked><input id="chk-axes" type="checkbox" checked>
     <input id="chk-grid" type="checkbox" checked><input id="chk-undeformed" type="checkbox" checked>
-    <input id="chk-deformed" type="checkbox" checked>`;
+    <input id="chk-deformed" type="checkbox" checked><input id="show-envelope" type="checkbox">`;
 });
 
 describe('physical response comparison UI', () => {

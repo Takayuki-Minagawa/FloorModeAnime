@@ -67,8 +67,9 @@ export function drawComparisonHistory(svg, rows, unit, title, labels) {
   let min = 0, max = 0;
   for (const row of rows) for (const key of keys) { min = Math.min(min, row[key]); max = Math.max(max, row[key]); }
   const scale = Math.max(Math.abs(min), Math.abs(max)) || 1;
-  const padding = Math.max((max - min) / scale * 0.08, 0.02);
-  const lo = min / scale - padding, hi = max / scale + padding;
+  const normalizedMin = min / scale, normalizedMax = max / scale;
+  const padding = Math.max((normalizedMax - normalizedMin) * 0.08, 0.02);
+  const lo = normalizedMin - padding, hi = normalizedMax + padding;
   const x = time => 64 + fractionBetween(time, first, last) * 516;
   const y = value => 196 - (value / scale - lo) / (hi - lo) * 160;
   svg.replaceChildren();

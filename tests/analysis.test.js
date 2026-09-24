@@ -93,6 +93,14 @@ describe('physical response comparison', () => {
     b.response.times[1] += 0.001;
     expect(() => compareResponses(a, b)).toThrow('E_COMPARE_TIME');
   });
+
+  it('compares coordinate meaning without rejecting extra descriptive metadata', () => {
+    const a = read('response_case.json'), b = read('response_case.json');
+    b.response.coordinates = { ...b.response.coordinates, note: 'same right-handed z coordinates' };
+    expect(compareResponses(a, b).maxAbs).toBe(0);
+    b.response.coordinates.verticalAxis = 'y';
+    expect(() => compareResponses(a, b)).toThrow('E_COMPARE_COORDINATES');
+  });
 });
 
 it('display-settings identity includes numerical content and ignores Map insertion order', () => {

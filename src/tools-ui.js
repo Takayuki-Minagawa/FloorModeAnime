@@ -77,6 +77,10 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
   });
   on($('show-envelope'), 'change', () => {
     if (!response) { $('show-envelope').checked = false; return; }
+    if (comparison.isActive?.() && $('show-envelope').checked) {
+      $('show-envelope').checked = false;
+      return;
+    }
     envelope = $('show-envelope').checked;
     controller.stop();
     viewer.setEnvelope(envelope ? new Map(peaks.nodes.map(p => [p.nodeId, p.maxAbs])) : null, { min: 0, max: peaks.global.maxAbs });
