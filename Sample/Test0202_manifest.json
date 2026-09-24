@@ -1,0 +1,153 @@
+{
+  "schema_version": "floorvib-project/1",
+  "case_id": "Test0202",
+  "units": {
+    "canonical": {
+      "length": "m",
+      "force": "N",
+      "mass": "kg",
+      "time": "s"
+    },
+    "source": {
+      "length": "mm",
+      "force": "N",
+      "time": "s",
+      "area": "mm^2",
+      "second_moment": "mm^4",
+      "translational_mass": "N*s^2/mm"
+    }
+  },
+  "coordinates": {
+    "vertical_axis": "z",
+    "handedness": "right"
+  },
+  "dimensions": {
+    "node_count": 76,
+    "element_count": 79,
+    "ndf": 6,
+    "dof_count": 456
+  },
+  "model": {
+    "file": "Test0202_calc.yaml",
+    "sha256": "sha256:5ec7539a36b16591637a94fb9eb257adcefaeba79ad629cdc8725481a84c123e",
+    "size": 55483,
+    "node_order": [
+      1,
+      2,
+      3,
+      4,
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      128,
+      129,
+      130,
+      131,
+      132,
+      133,
+      134,
+      3001,
+      3002,
+      3003,
+      3004,
+      3005,
+      3006,
+      3007,
+      3008,
+      3009,
+      3011,
+      3012,
+      3013,
+      3014,
+      3015,
+      3016,
+      3017,
+      3018,
+      3019,
+      3021,
+      3022,
+      3023,
+      3024,
+      3025,
+      3026,
+      3027,
+      3028,
+      3029,
+      3031,
+      3032,
+      3033,
+      3034,
+      3035,
+      3036,
+      3037,
+      3038,
+      3039,
+      9001,
+      9002,
+      9003,
+      9004,
+      9005,
+      9006,
+      9007,
+      9008
+    ],
+    "node_order_hash": "sha256:44502b98b4d77455a92b73a8ffa2ee2468c0fe8448b46d3c16d9005658724fb5",
+    "ndf": 6,
+    "dof_order": [
+      "ux",
+      "uy",
+      "uz",
+      "rx",
+      "ry",
+      "rz"
+    ]
+  },
+  "modal_result": {
+    "file": "Test0202_calc_go_modal_result.json",
+    "sha256": "sha256:2218062628aa168acb9d0d84dbc9eff8ba9bab632e6d32fd1ce70e468b7b3a13",
+    "size": 153265,
+    "normalization": {
+      "type": "mass-normalized",
+      "reference": "FEM-Struct-PyGo ModalResult: phi.T @ M @ phi = 1"
+    },
+    "solver": {
+      "name": "FEM-Struct-PyGo",
+      "backend": "superlu",
+      "revision": "8e4303d34f12474cdc916754e7dc73383804ca42"
+    }
+  },
+  "provenance": {
+    "source_repository": "Takayuki-Minagawa/Beam-TrussStructMaker",
+    "source_revision": "b4415b77db41eccce5f39b4bb65d8807a89e47ed",
+    "source_hashes": {
+      "Test0202_calc.yaml": "sha256:5ec7539a36b16591637a94fb9eb257adcefaeba79ad629cdc8725481a84c123e",
+      "Test0202_calc_go_modal_result.json": "sha256:2218062628aa168acb9d0d84dbc9eff8ba9bab632e6d32fd1ce70e468b7b3a13"
+    },
+    "golden_frequencies_hz": [
+      25.790631489066364,
+      39.56317222602471,
+      49.90223568935435,
+      56.157363276338224,
+      62.19443131063867,
+      70.54191272371826
+    ]
+  }
+}

@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://takayuki-minagawa.github.io/FloorModeAnime/schemas/floorvib-project-v1.viewer.schema.json",
+  "title": "Floor vibration project manifest v1 — viewer profile",
+  "description": "FloorModeAnime input-gate profile. Runtime validation additionally verifies hashes, exact node/DOF order, dimensions, finite full-mode values, and explicit unit conversion.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "units",
+    "coordinates",
+    "dimensions",
+    "model",
+    "modal_result",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": { "const": "floorvib-project/1" },
+    "case_id": { "type": "string", "minLength": 1 },
+    "project_id": { "type": "string", "minLength": 1 },
+    "units": {
+      "type": "object",
+      "required": ["canonical", "source"],
+      "properties": {
+        "canonical": {
+          "type": "object",
+          "required": ["length", "force", "mass", "time"],
+          "properties": {
+            "length": { "const": "m" },
+            "force": { "const": "N" },
+            "mass": { "const": "kg" },
+            "time": { "const": "s" }
+          },
+          "additionalProperties": true
+        },
+        "source": {
+          "type": "object",
+          "required": ["length", "force", "time"],
+          "properties": {
+            "length": { "enum": ["m", "mm"] },
+            "force": { "const": "N" },
+            "time": { "const": "s" },
+            "area": { "enum": ["m^2", "mm^2"] },
+            "second_moment": { "enum": ["m^4", "mm^4"] }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "coordinates": {
+      "type": "object",
+      "properties": {
+        "vertical_axis": { "const": "z" },
+        "handedness": { "const": "right" },
+        "right_handed": { "const": true }
+      },
+      "anyOf": [
+        { "required": ["vertical_axis", "handedness"] },
+        { "required": ["vertical_axis", "right_handed"] }
+      ],
+      "additionalProperties": true
+    },
+    "dimensions": {
+      "type": "object",
+      "required": ["node_count", "element_count", "ndf", "dof_count"],
+      "properties": {
+        "node_count": { "type": "integer", "minimum": 1 },
+        "element_count": { "type": "integer", "minimum": 1 },
+        "ndf": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "dof_count": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "model": {
+      "type": "object",
+      "required": ["file", "sha256", "node_order", "node_order_hash", "ndf", "dof_order"],
+      "properties": {
+        "file": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size": { "type": "integer", "minimum": 0 },
+        "node_order": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "node_order_hash": { "$ref": "#/$defs/sha256" },
+        "ndf": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "dof_order": { "$ref": "#/$defs/dofOrder" }
+      },
+      "additionalProperties": true
+    },
+    "modal_result": {
+      "type": "object",
+      "required": ["file", "sha256", "normalization"],
+      "properties": {
+        "file": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size": { "type": "integer", "minimum": 0 },
+        "normalization": { "$ref": "#/$defs/normalization" }
+      },
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "dofOrder": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": { "enum": ["ux", "uy", "uz", "rx", "ry", "rz"] }
+    },
+    "normalization": {
+      "type": "object",
+      "required": ["type", "reference"],
+      "properties": {
+        "type": {
+          "enum": ["mass-normalized", "unit-modal-mass", "max-abs-component", "solver-eigenvector"]
+        },
+        "reference": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

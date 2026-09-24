@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/FloorModeAnime/favicon.svg">
+  <title>Floor Mode Anime</title>
+  <script type="module" crossorigin src="/FloorModeAnime/assets/index-CPL6GqS_.js"></script>
+  <link rel="modulepreload" crossorigin href="/FloorModeAnime/assets/yaml-DRtBMuYi.js">
+  <link rel="modulepreload" crossorigin href="/FloorModeAnime/assets/three-core-C-amcp5E.js">
+  <link rel="stylesheet" crossorigin href="/FloorModeAnime/assets/index-4rsxS-iE.css">
+</head>
+<body>
+  <div id="app-container">
+    <div id="canvas-container">
+      <div id="display-meaning" class="display-meaning" data-i18n="displayMeaningMode">
+        表示振幅: 床寸法 L/10 に正規化した演出（物理応答ではありません）
+      </div>
+      <div id="response-legend" class="response-legend" hidden>
+        <span id="response-legend-title"></span>
+        <div class="response-gradient" aria-hidden="true"></div>
+        <div class="response-range">
+          <span id="response-legend-min"></span>
+          <span id="response-legend-max"></span>
+        </div>
+      </div>
+      <div id="mode-legend" class="response-legend" hidden>
+        <span data-i18n="modeColorLegend">固有ベクトル鉛直成分 uz/Umax（物理変位ではありません）</span>
+        <div class="response-gradient mode-gradient" aria-hidden="true"></div>
+        <div class="response-range"><span>−1</span><span>0</span><span>+1</span></div>
+      </div>
+    </div>
+
+    <div id="comparison-container" hidden><span id="comparison-caption" class="display-meaning"></span></div>
+
+    <div id="controls">
+      <div class="control-group control-row">
+        <h2 class="panel-title" data-i18n="panelTitle">コントロール</h2>
+        <button id="btn-lang" type="button" data-i18n="btnLang">EN</button>
+      </div>
+
+      <!-- ファイル読込 -->
+      <div class="control-group">
+        <label data-i18n="labelLoadJson">JSON読込</label>
+        <input id="file-input" type="file" accept=".json,.yaml,.yml" multiple hidden>
+        <div class="file-row">
+          <button id="btn-select-file" type="button" data-i18n="btnSelectFile">ファイルを選択</button>
+          <span id="file-name-display">選択なし</span>
+        </div>
+        <span class="file-hint" data-i18n="fileInputHint">calc YAML・modal result JSON・任意のmanifest、または応答archive JSONを読み込みます</span>
+      </div>
+
+      <div class="control-group" aria-live="polite"><span id="load-status" data-i18n="loadReading"></span><button id="cancel-load" type="button" data-i18n="cancel" hidden>取消</button></div>
+
+      <!-- モード選択 -->
+      <div id="modal-controls" class="control-group">
+        <label for="mode-select" data-i18n="labelMode">モード</label>
+        <select id="mode-select">
+          <option value="" data-i18n="loadingOption">-- 読込中 --</option>
+        </select>
+        <span id="freq-display">f = 0.00 Hz</span>
+        <span id="period-display"></span>
+        <span class="screening-label" data-i18n="labelScreening">歩行共振帯スクリーニング</span>
+        <span id="habitability-display" class="habitability"></span>
+      </div>
+
+      <div id="observation-controls" class="control-group">
+        <label for="observation-period" data-i18n="observation">モード観察用再生</label>
+        <select id="observation-period"><option value="0" data-i18n="normalPlayback">通常速度</option><option value="2" data-i18n="cycle2">1周期を2秒</option><option value="4" data-i18n="cycle4">1周期を4秒</option></select>
+        <span id="observation-status" class="file-hint"></span>
+      </div>
+      <!-- 物理応答 archive 情報 -->
+      <div id="response-info" class="control-group" hidden>
+        <label data-i18n="labelResponse">物理応答</label>
+        <span id="response-quantity"></span>
+        <span id="response-unit"></span>
+      </div>
+
+      <!-- 再生 / 停止 -->
+      <div class="control-group control-row">
+        <button id="btn-play" type="button" data-i18n="btnPlay">&#9654; 再生</button>
+        <button id="btn-stop" type="button" data-i18n="btnStop">&#9632; 停止</button>
+      </div>
+
+      <!-- 時間表示 -->
+      <div class="control-group">
+        <label data-i18n="labelTime">時間</label>
+        <span id="time-display">t = 0.000 s</span>
+      </div>
+
+      <!-- タイムライン（スクラブ・コマ送り） -->
+      <div class="control-group">
+        <label for="time-slider" data-i18n="labelTimeline">タイムライン</label>
+        <input id="time-slider" type="range" min="0" max="1" step="0.001" value="0">
+        <div class="control-row frame-row">
+          <button id="btn-step-back" type="button" title="コマ戻し" data-i18n-title="titleStepBack">&#9194;</button>
+          <button id="btn-step-fwd" type="button" title="コマ送り" data-i18n-title="titleStepFwd">&#9193;</button>
+        </div>
+      </div>
+
+      <!-- 視点プリセット -->
+      <div class="control-group">
+        <label data-i18n="labelView">視点</label>
+        <div class="control-row view-row">
+          <button id="btn-view-iso" type="button" data-i18n="viewIso">等角</button>
+          <button id="btn-view-top" type="button" data-i18n="viewTop">平面</button>
+          <button id="btn-view-front" type="button" data-i18n="viewFront">正面</button>
+          <button id="btn-view-side" type="button" data-i18n="viewSide">側面</button>
+        </div>
+      </div>
+
+      <!-- 速度スライダー -->
+      <div class="control-group">
+        <label for="speed-slider"><span data-i18n="labelSpeed">速度</span>: <span id="speed-value">1.0</span>x</label>
+        <div class="slider-row">
+          <input id="speed-slider" type="range" min="0.2" max="2.0" step="0.1" value="1.0">
+          <input id="speed-number" type="number" min="0.2" max="2.0" step="0.1" value="1.0" class="num-input">
+        </div>
+      </div>
+
+      <!-- 変形倍率スライダー -->
+      <div id="scale-controls" class="control-group">
+        <label for="scale-slider"><span data-i18n="labelScale">倍率</span>: <span id="scale-value">1.0</span></label>
+        <div class="slider-row">
+          <input id="scale-slider" type="range" min="0.5" max="3.0" step="0.1" value="1.0">
+          <input id="scale-number" type="number" min="0.5" max="3.0" step="0.1" value="1.0" class="num-input">
+        </div>
+        <label id="response-normalization-row" class="inline-check" hidden>
+          <input id="chk-response-normalization" type="checkbox" checked>
+          <span data-i18n="chkResponseNormalization">表示を L/10 に正規化</span>
+        </label>
+      </div>
+
+      <!-- 表示切替チェックボックス -->
+      <div class="control-group">
+        <label data-i18n="labelVisibility">表示切替</label>
+        <div class="checkbox-list">
+          <label><input id="chk-undeformed" type="checkbox" checked> <span data-i18n="chkUndeformed">未変形</span></label>
+          <label><input id="chk-deformed"   type="checkbox" checked> <span data-i18n="chkDeformed">変形</span></label>
+          <label><input id="chk-axes"       type="checkbox" checked> <span data-i18n="chkAxes">軸</span></label>
+          <label><input id="chk-grid"       type="checkbox" checked> <span data-i18n="chkGrid">グリッド</span></label>
+          <label><input id="chk-node-ids"   type="checkbox" checked> <span data-i18n="chkNodeIds">節点番号</span></label>
+          <label><input id="chk-highlight"  type="checkbox"> <span data-i18n="chkHighlight">最大変位</span></label>
+          <label id="mode-colors-row"><input id="chk-mode-colors" type="checkbox"> <span data-i18n="chkModeColors">モードの正負を色分け</span></label>
+        </div>
+      </div>
+
+      <!-- 線の設定 -->
+      <div class="control-group">
+        <label data-i18n="labelLineStyle">線の設定</label>
+        <div class="line-style-row">
+          <span data-i18n="chkUndeformed">未変形</span>
+          <input id="color-undeformed" type="color" value="#888888" title="未変形線の色">
+          <input id="width-undeformed" type="range" min="1" max="10" step="0.5" value="2">
+          <span id="width-undeformed-val">2.0</span>
+        </div>
+        <div class="line-style-row">
+          <span data-i18n="chkDeformed">変形</span>
+          <input id="color-deformed" type="color" value="#ff4444" title="変形線の色">
+          <input id="width-deformed" type="range" min="1" max="10" step="0.5" value="3">
+          <span id="width-deformed-val">3.0</span>
+        </div>
+      </div>
+
+      <!-- テーマ切替 + PNG保存 -->
+      <div class="control-group control-row">
+        <button id="btn-theme" type="button" data-i18n="btnThemeLight">&#9788; ライト</button>
+        <button id="btn-download" type="button" data-i18n="btnSavePng">&#128190; PNG保存</button>
+      </div>
+
+      <!-- データ出力 -->
+      <div class="control-group">
+        <label data-i18n="labelExport">表示用正規化座標</label>
+        <div class="control-row">
+          <button id="btn-export-csv" type="button" data-i18n="btnExportCsv">表示座標CSV</button>
+          <button id="btn-export-json" type="button" data-i18n="btnExportJson">表示座標JSON</button>
+        </div>
+      </div>
+
+      <!-- モード形 数値テーブル -->
+      <details id="modeshape-section">
+        <summary data-i18n="labelModeShape">モード形 数値</summary>
+        <div id="modeshape-table"></div>
+      </details>
+
+      <details id="analysis-section" open>
+        <summary data-i18n="inspectNode">節点の確認</summary>
+        <label for="selected-node" data-i18n="nodeId">節点ID</label>
+        <input id="selected-node" type="number" min="1" step="1" list="node-options"><datalist id="node-options"></datalist>
+        <output id="selected-value"></output>
+        <div id="history-controls" hidden>
+          <svg id="history-chart" viewBox="0 0 600 240" role="img" tabindex="0" aria-label="Response history"></svg>
+          <details id="spectrum-section">
+            <summary data-i18n="spectrumTitle">選択節点の周波数分析</summary>
+            <svg id="spectrum-chart" viewBox="0 0 600 240" role="img" aria-label="Power spectral density"></svg>
+            <output id="spectrum-status" aria-live="polite"></output>
+            <button id="spectrum-csv" type="button" data-i18n="spectrumCsv">PSD CSV</button>
+          </details>
+          <div id="peak-values"></div>
+          <div class="control-row"><button id="jump-peak" type="button" data-i18n="jumpPeak">節点ピークへ</button><button id="jump-global" type="button" data-i18n="jumpGlobal">全体ピークへ</button></div>
+          <button id="history-csv" type="button" data-i18n="historyCsv">節点時刻歴CSV</button>
+          <label><input id="show-envelope" type="checkbox"> <span data-i18n="envelope">最大絶対値包絡（時刻混在）</span></label>
+        </div>
+      </details>
+      <details id="compare-section">
+        <summary data-i18n="compare">ケース比較・鉛直MAC</summary>
+        <input id="compare-files" type="file" accept=".json,.yaml,.yml" multiple>
+        <label for="compare-mode" data-i18n="compareMode">比較モード</label><select id="compare-mode"></select>
+        <label><input id="compare-sign" type="checkbox"> <span data-i18n="invertSign">比較形状の符号を反転</span></label>
+        <button id="clear-compare" type="button" data-i18n="clearCompare">比較を終了</button>
+        <span class="file-hint" data-i18n="macHint">同一位相・鉛直成分のみ。MACは合否判定ではありません。</span>
+        <output id="compare-status" aria-live="polite"></output><div id="mac-table"></div>
+      </details>
+      <details id="response-compare-section" hidden>
+        <summary data-i18n="responseCompare">物理応答 A/B 差分</summary>
+        <label for="response-compare-files" data-i18n="responseCompareFile">比較先の応答archive</label>
+        <input id="response-compare-files" type="file" accept=".json">
+        <button id="clear-response-compare" type="button" data-i18n="clearCompare">比較を終了</button>
+        <output id="response-compare-status" aria-live="polite"></output>
+        <svg id="response-compare-chart" viewBox="0 0 600 240" role="img" tabindex="0" aria-label="Response comparison history"></svg>
+        <div class="control-row">
+          <button id="response-compare-csv" type="button" data-i18n="responseCompareCsv">差分CSV</button>
+          <button id="response-compare-png" type="button" data-i18n="responseComparePng">差分PNG</button>
+        </div>
+      </details>
+      <details id="capture-section">
+        <summary data-i18n="captureOptions">画像・動画の設定</summary>
+        <label for="capture-size" data-i18n="imageWidth">画像幅</label><select id="capture-size"><option value="1600">1600 px</option><option value="2400">2400 px</option></select>
+        <label for="capture-background" data-i18n="background">背景</label><select id="capture-background"><option value="" data-i18n="currentTheme">現在のテーマ</option><option value="#ffffff" data-i18n="white">白</option><option value="#1a1a2e" data-i18n="dark">暗色</option></select>
+        <label for="video-duration" data-i18n="videoDuration">録画秒数</label><input id="video-duration" type="number" value="4" min="1" max="30" step="1">
+        <div class="control-row"><button id="save-video" type="button" data-i18n="saveVideo">動画保存</button><button id="cancel-video" type="button" data-i18n="cancel" hidden>取消</button></div>
+        <output id="video-status" aria-live="polite"></output>
+      </details>
+      <details id="settings-section">
+        <summary data-i18n="settings">表示条件の保存・復元</summary>
+        <button id="save-settings" type="button" data-i18n="saveSettings">条件JSONを保存</button>
+        <label for="settings-file" data-i18n="restoreSettings">条件JSONを復元</label><input id="settings-file" type="file" accept=".json">
+      </details>
+      <output id="tools-error" role="status"></output>
+      <!-- ヘルプ -->
+      <details id="help-section">
+        <summary data-i18n="btnHelp">&#10067; ヘルプ</summary>
+        <div id="help-content"></div>
+      </details>
+    </div>
+  </div>
+
+  <!-- ドラッグ&ドロップ オーバーレイ -->
+  <div id="drop-overlay"><span data-i18n="dropHint">calc YAML と result JSON をドロップして読み込み</span></div>
+
+  <!-- エラー/警告表示 -->
+  <div id="error-container"></div>
+
+</body>
+</html>
