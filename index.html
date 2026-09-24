@@ -21,6 +21,11 @@
           <span id="response-legend-max"></span>
         </div>
       </div>
+      <div id="mode-legend" class="response-legend" hidden>
+        <span data-i18n="modeColorLegend">固有ベクトル鉛直成分 uz/Umax（物理変位ではありません）</span>
+        <div class="response-gradient mode-gradient" aria-hidden="true"></div>
+        <div class="response-range"><span>−1</span><span>0</span><span>+1</span></div>
+      </div>
     </div>
 
     <div id="comparison-container" hidden><span id="comparison-caption" class="display-meaning"></span></div>
@@ -111,7 +116,7 @@
       </div>
 
       <!-- 変形倍率スライダー -->
-      <div class="control-group">
+      <div id="scale-controls" class="control-group">
         <label for="scale-slider"><span data-i18n="labelScale">倍率</span>: <span id="scale-value">1.0</span></label>
         <div class="slider-row">
           <input id="scale-slider" type="range" min="0.5" max="3.0" step="0.1" value="1.0">
@@ -133,6 +138,7 @@
           <label><input id="chk-grid"       type="checkbox" checked> <span data-i18n="chkGrid">グリッド</span></label>
           <label><input id="chk-node-ids"   type="checkbox" checked> <span data-i18n="chkNodeIds">節点番号</span></label>
           <label><input id="chk-highlight"  type="checkbox"> <span data-i18n="chkHighlight">最大変位</span></label>
+          <label id="mode-colors-row"><input id="chk-mode-colors" type="checkbox"> <span data-i18n="chkModeColors">モードの正負を色分け</span></label>
         </div>
       </div>
 
@@ -181,6 +187,12 @@
         <output id="selected-value"></output>
         <div id="history-controls" hidden>
           <svg id="history-chart" viewBox="0 0 600 240" role="img" tabindex="0" aria-label="Response history"></svg>
+          <details id="spectrum-section">
+            <summary data-i18n="spectrumTitle">選択節点の周波数分析</summary>
+            <svg id="spectrum-chart" viewBox="0 0 600 240" role="img" aria-label="Power spectral density"></svg>
+            <output id="spectrum-status" aria-live="polite"></output>
+            <button id="spectrum-csv" type="button" data-i18n="spectrumCsv">PSD CSV</button>
+          </details>
           <div id="peak-values"></div>
           <div class="control-row"><button id="jump-peak" type="button" data-i18n="jumpPeak">節点ピークへ</button><button id="jump-global" type="button" data-i18n="jumpGlobal">全体ピークへ</button></div>
           <button id="history-csv" type="button" data-i18n="historyCsv">節点時刻歴CSV</button>
@@ -195,6 +207,18 @@
         <button id="clear-compare" type="button" data-i18n="clearCompare">比較を終了</button>
         <span class="file-hint" data-i18n="macHint">同一位相・鉛直成分のみ。MACは合否判定ではありません。</span>
         <output id="compare-status" aria-live="polite"></output><div id="mac-table"></div>
+      </details>
+      <details id="response-compare-section" hidden>
+        <summary data-i18n="responseCompare">物理応答 A/B 差分</summary>
+        <label for="response-compare-files" data-i18n="responseCompareFile">比較先の応答archive</label>
+        <input id="response-compare-files" type="file" accept=".json">
+        <button id="clear-response-compare" type="button" data-i18n="clearCompare">比較を終了</button>
+        <output id="response-compare-status" aria-live="polite"></output>
+        <svg id="response-compare-chart" viewBox="0 0 600 240" role="img" tabindex="0" aria-label="Response comparison history"></svg>
+        <div class="control-row">
+          <button id="response-compare-csv" type="button" data-i18n="responseCompareCsv">差分CSV</button>
+          <button id="response-compare-png" type="button" data-i18n="responseComparePng">差分PNG</button>
+        </div>
       </details>
       <details id="capture-section">
         <summary data-i18n="captureOptions">画像・動画の設定</summary>

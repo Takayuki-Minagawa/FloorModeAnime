@@ -1,6 +1,6 @@
 {
   "name": "floor-mode-anime",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "床構面の鉛直モード形・物理応答時刻歴を3D表示する静的Webアプリ",
   "type": "module",
   "engines": {

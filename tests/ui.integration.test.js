@@ -217,7 +217,7 @@ describe('UI integration (setupUI against real index.html)', () => {
     expect(viewer.setVisibility).toHaveBeenLastCalledWith({ labels: true });
   });
 
-  it('物理応答archiveではモードUIを分離し、正規化OFFをcontrollerへ反映する', () => {
+  it('加速度archiveでは形状倍率を隠し、基準床面コンターを説明する', () => {
     floorData = parseFloorData(responseSample);
     animController = new AnimationController(floorData);
     setupUI({ viewer, animController, floorData, onFileLoad: () => {} });
@@ -230,11 +230,11 @@ describe('UI integration (setupUI against real index.html)', () => {
     expect(document.getElementById('response-legend-max').textContent).toBe('0.1100');
 
     const checkbox = document.getElementById('chk-response-normalization');
-    checkbox.checked = false;
-    checkbox.dispatchEvent(new window.Event('change'));
+    expect(checkbox.disabled).toBe(true);
+    expect(document.getElementById('scale-controls').hidden).toBe(true);
     expect(animController.isDisplayNormalized()).toBe(false);
     expect(document.getElementById('scale-slider').disabled).toBe(true);
-    expect(document.getElementById('display-meaning').textContent).toContain('archive実値');
+    expect(document.getElementById('display-meaning').textContent).toContain('高さは変化しません');
   });
 
   it('読込成功後のUI再初期化でも選択ファイル名を保持する', () => {

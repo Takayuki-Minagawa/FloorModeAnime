@@ -1,6 +1,6 @@
 # Floor Mode Anime
 
-> **Ver. 1.3.0**
+> **Ver. 1.4.0**
 
 床構面の鉛直モード形と、版管理された物理応答アーカイブをブラウザで 3D 表示する静的 Web アプリです。GitHub Pages で動作し、サーバー処理は必要ありません。
 
@@ -11,15 +11,17 @@
 
 - `floorvib-project/1` manifest による単位、座標系、節点／DOF 順、正規化、来歴、ファイル hash の照合
 - manifest で宣言された `mm` 座標の `m` への明示変換と、変換前後の集計表示
-- 現行 Test0202 golden（76 節点、79 要素、6 モード）の自動読込と CI 回帰照合
+- 現行 Test0202 golden（76 節点、79 要素、6 モード）の自動読込とローカル回帰照合
 - モード形の再生／停止、モード切替、速度・倍率調整、タイムライン、コマ送り
 - `floor-response-archive/1` の時刻歴、床面コンター、物理単位付き凡例
-- 物理応答の形状正規化 ON/OFF。OFF 時は鉛直表示量と archive 値を数値一致させる
+- 変位応答の形状正規化 ON/OFF。速度・加速度は基準床面上の色コンター
 - 表示用正規化座標と物理応答 archive 値を分離した CSV／JSON 出力
 - 視点プリセット、OrbitControls、表示要素切替、節点番号、最大振幅節点表示
 - 日本語／英語、ライト／ダークテーマ、停止中の凡例・節点番号・条件付き PNG 保存
 - 節点のクリック／ID選択、物理応答時刻歴グラフ、元サンプルCSV、ピーク時刻移動、最大絶対値包絡
 - 2ケースの同期視点比較、周波数差・鉛直成分MAC・正規化形状差
+- 物理応答2ケースの同一時刻・同一メッシュ差分、節点A/B/差分時刻歴、差分CSV・PNG
+- モード形の符号付き `uz/Umax` 着色と凡例、等間隔応答の節点別 Welch PSD
 - 2秒／4秒の周期固定観察再生、表示条件JSONの保存／復元、対応形式の動画保存
 - Workerによる非同期読込・進捗・取消、初期サンプル失敗からの手動読込復帰
 - 停止中の必要時描画、応答フレームキャッシュ、大規模数値表のページ分割
@@ -117,7 +119,7 @@ manifest に矛盾があれば推定して続行せず、描画前に停止し�
 }
 ```
 
-対応量と単位は `vertical_displacement: m`、`vertical_velocity: m/s`、`vertical_acceleration: m/s^2` です。色と数値表は常に archive の物理量を示します。形状正規化 ON は分布を `L_floor / 10` で見やすくするだけです。OFF では鉛直表示量を archive 値と数値一致させますが、加速度や速度を幾何学的な変位と解釈するものではありません。
+対応量と単位は `vertical_displacement: m`、`vertical_velocity: m/s`、`vertical_acceleration: m/s^2` です。色と数値表は常に archive の物理量を示します。床面の高さを動かすのは変位だけです。変位の形状正規化 ON は `L_floor / 10` を基準とした表示用誇張、OFF は `z + 変位[m]` です。速度・加速度は基準床面上のコンターとして示し、高さを変えません。
 
 ## 座標系
 
@@ -150,10 +152,11 @@ z_i'(t) = z_i + u_i(t)
 | 歩行共振帯スクリーニング | 歩行基本帯／倍音帯との周波数照合のみ。規準適合判定ではない |
 | Play / Stop | 再生とフレーム保持停止 |
 | Timeline / step | 時刻スクラブ、モードは 1 周期の 1/60、応答は archive サンプル単位で移動 |
-| Speed / Scale | 再生速度 0.2〜2.0、表示倍率 0.5〜3.0 |
-| Normalize display | 応答時のみ表示。OFF で archive 値と鉛直表示量を数値一致 |
+| Speed / Scale | 再生速度 0.2〜2.0、表示倍率 0.5〜3.0。倍率はモード・変位応答だけ |
+| Normalize display | 変位応答時のみ表示。OFF で変位[m]を床面の高さに加算 |
 | View | 等角、平面、正面、側面 |
 | Visibility | 未変形、変形、軸、グリッド、節点番号 |
+| Mode colors | 正規化固有ベクトルの鉛直成分 `uz/Umax` を符号付きで表示。瞬間変位ではない |
 | Export | モード表示座標または物理応答 archive 値を CSV／JSON 化 |
 | Save PNG | 停止中のみ保存 |
 | Language / Theme | JA/EN、ライト/ダーク |
@@ -168,11 +171,17 @@ z_i'(t) = z_i + u_i(t)
 
 「最大絶対値包絡」は節点ごとの全時刻最大絶対値を**未変形面**に着色します。異なる時刻の最大値を集めた分布であり、同時刻の変形形状ではありません。通常の数値表・CSV/JSONは引き続き現在時刻の応答値です。
 
+等間隔かつ32サンプル以上の応答では「選択節点の周波数分析」を開くと Welch 法のパワースペクトル密度（PSD）を表示します。各区間の平均を除去し、周期 Hann 窓（最大256点）を50%重複で使用します。横軸は0からナイキスト周波数、縦軸は `(応答単位)^2/Hz` です。窓長・分解能・卓越周波数と計算条件を画面とCSVに記録します。不等間隔・短いデータでは計算せず理由を表示します。これは探索用表示であり規準判定ではありません。
+
+計算方法は [SciPy の Welch 法](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.welch.html)、モード線の端点色は [three.js LineSegmentsGeometry.setColors](https://threejs.org/docs/pages/LineSegmentsGeometry.html) を参考にしました。外部実装のコードや色データはコピーしていません。
+
 ### ケース比較
 
 モードデータを読み込んだ状態で「ケース比較・鉛直MAC」に比較先ファイルを指定します。節点ID集合・座標・単位・座標契約が一致するケースだけを比較します。主画面のモードを変更すると、比較先各モードの周波数差とMAC表を更新します。比較モード選択と符号反転で並列表示を調整できます。カメラは双方向に同期し、両形状を主画面の位相で描きます。
 
 MACは選択モデルの**鉛直成分のみ・質量重みなし**の相関です。ゼロベクトルは評価不能。近接・重複固有値、部分自由度の観測ではモード対応は一意とは限らず、合否や全DOFの直交性の判定には使いません。異なるメッシュへの自動補間は行いません。
+
+物理応答では「物理応答 A/B 差分」に比較先 archive を読み込みます。応答量・単位・座標・節点・面接続・時刻列が一致するケースだけ `B−A` を計算します。差分コンターは未変形床面上に描き、色範囲は全時刻共通のゼロ対称です。選択節点のA/B/差分時刻歴、最大絶対差の節点・時刻、選択節点の差分CSVと差分PNGを出力できます。時刻列が違う場合は補間せず拒否します。比較中は同時刻の値を左右に示すため、全時刻の包絡表示を解除します。
 
 ### 観察再生、画像・動画
 
@@ -184,7 +193,7 @@ PNGは停止してから保存します。「画像・動画の設定」で幅16
 
 ### 表示条件の再利用
 
-条件JSONには視点・時刻・モード・倍率・速度・節点・表示切替・線スタイルを保存します。解析データそのものや比較先ファイルは含みません。同じ入力データを読み込んでから復元し、数値内容を含む識別子が違う場合は適用しません。不正設定を部分的に反映することはありません。
+条件JSONには視点・時刻・モード・倍率・速度・節点・表示切替・線スタイル・モード着色を保存します。解析データそのものや比較先ファイルは含みません。同じ入力データを読み込んでから復元し、数値内容を含む識別子が違う場合は適用しません。不正設定を部分的に反映することはありません。
 
 ### 入力互換性と性能
 
@@ -203,7 +212,7 @@ legacyの数値文字列変換は維持します。版付きresponseの数値は
 - model/result の byte hash、節点・DOF 順 hash、周波数をテストで固定
 - `npm run sample:manifest` で manifest を決定的に再生成
 
-上流 Beam→FEM の一気通貫生成が復旧した後は、同じ hash テストを上流の単一生成元 CI 配布物へ接続できます。
+上流 Beam→FEM の一気通貫生成が復旧した後は、同じ hash テストを上流の単一生成元成果物へ接続できます。
 
 ## 検証
 
@@ -218,7 +227,11 @@ npm run benchmark     # CPU計測。WebGL/GPU性能や改善率ではない
 npm run benchmark:browser # ローカルVite＋Chromiumで読込・RAF・ヒープを計測
 ```
 
-開発中はローカルで検証します。`ci.yml` は手動起動のみで、PR／ブランチpushではActionsを消費しません。`main` へのマージ時のPages workflow内で lint、全 Vitest、manifest差分照合、dependency audit、production build を実行し、成功した成果物だけを公開します。golden と negative test には、順序入替え、単位混在、ID 重複、hash 不一致、正規化不明、非有限 full DOF、応答次元／単位違反を含みます。
+開発中の検証と本番ビルドはローカルで実行します。リポジトリ独自の GitHub Actions workflow は使用しません。golden と negative test には、順序入替え、単位混在、ID 重複、hash 不一致、正規化不明、非有限 full DOF、応答次元／単位違反を含みます。
+
+### Ver. 1.4.0 の実行記録（2026-09-24）
+
+応答量別の幾何表示、物理応答 A/B 差分、モード符号色、Welch PSD を追加しました。ローカルで lint、218 単体／統合テスト、production build を通過しました。Chromium、Firefox、WebKit の画面テストも各 16 件（合計 48 件）通過し、新機能の操作と出力を確認しました。
 
 ### Ver. 1.3.0 の実行記録（2026-09-07）
 
@@ -254,6 +267,8 @@ src/
   shell.js        データなしでも利用可能なファイル読込
   tools-ui.js     節点確認・ピーク・設定・動画
   compare-ui.js   2ケース比較と同期カメラ
+  response-compare-ui.js 物理応答2ケースの差分表示
+  spectrum.js     等間隔の節点時刻歴に対する Welch PSD
   analysis.js     ピーク、時刻歴、鉛直成分MAC、データ識別
   history-chart.js 時刻歴グラフと極値を保つ表示間引き
   settings.js     表示条件の検証・保存
@@ -282,7 +297,9 @@ three.js 本体、addons、YAML parser、アプリ本体を分割し、単一 JS
 
 ## GitHub Pages
 
-`main` への push で `.github/workflows/deploy.yml` が `dist/` を生成し、GitHub Pages artifact として配布します。リポジトリの **Settings > Pages > Source** は **GitHub Actions** を選択してください。
+リポジトリ独自の GitHub Actions workflow でのビルド・公開は行いません。ローカルで検証して `npm run build` を実行し、`dist/` の中身を公開用 `gh-pages` ブランチのルートへ手動で配置します。`.nojekyll` も同じルートに置き、**Settings > Pages > Source** を **Deploy from a branch / gh-pages / (root)** に設定します。`vite.config.js` の `base` は `/FloorModeAnime/` です。
+
+GitHub の仕様では、ブランチ公開でも Pages 自体の配布時に GitHub 管理の Actions workflow run が発生します。Actions の実行自体が許されない環境では Pages 公開を行わず、ローカルの `dist/` を別の静的ホストへ手動配置してください。詳細は [GitHub Pages の公開元設定](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)を参照してください。
 
 ## ライセンス
 
@@ -292,6 +309,7 @@ three.js 本体、addons、YAML parser、アプリ本体を分割し、単一 JS
 
 | バージョン | 日付 | 内容 |
 |---|---|---|
+| **1.4.0** | 2026-09-24 | 応答量別の幾何表示、物理応答A/B差分、モード符号色、Welch PSD、独自Actionsを使わない公開手順 |
 | **1.3.0** | 2026-09-07 | 状態同期・読込復帰、必要時描画、面分割検証、時刻歴・ピーク・包絡、比較MAC、条件付きPNG・動画、表示条件保存、Worker読込、ローカルブラウザ検証 |
 | 1.2.0 | 2026-08-08 | 意味ラベル修正、manifest gate、Test0202 golden、物理応答コンター、公開 schema、依存更新、audit 解消、code splitting |
 | 1.1.0 | 2026-06-21 | 初期位相、タイムライン、視点、数値表、周波数帯表示、export、Vitest |

@@ -66,6 +66,7 @@ export class AnimationController {
       );
       this._responseQuantity = response.quantity;
       this._responseUnit = response.unit;
+      this._displayNormalized = response.quantity === 'vertical_displacement';
       const range = responseRange(this._responseValues);
       this._responseMin = range.min;
       this._responseMax = range.max;
@@ -356,9 +357,11 @@ export class AnimationController {
     return uz / umax;
   }
 
-  /** Toggle L/10 shape normalization for physical response archives. */
+  /** Only displacement can be scaled into a geometric offset. */
   setDisplayNormalized(enabled) {
-    if (this._dataKind === 'response') this._displayNormalized = Boolean(enabled);
+    if (this._dataKind === 'response' && this._responseQuantity === 'vertical_displacement') {
+      this._displayNormalized = Boolean(enabled);
+    }
   }
 
   isDisplayNormalized() {
@@ -417,12 +420,13 @@ export class AnimationController {
     this._frameRange = min === Infinity ? { min: 0, max: 0 } : { min, max };
   }
 
-  /** Viewer ordinate: normalized L/10 presentation or exact raw archive value. */
+  /** Geometric offset in metres. Velocity and acceleration remain scalar colors. */
   getDisplayOffset(nodeId) {
     if (this._dataKind !== 'response') {
       const node = this._nodes.get(nodeId);
       return node ? this.getDisplacedZ(nodeId) - node.z : 0;
     }
+    if (this._responseQuantity !== 'vertical_displacement') return 0;
     const value = this.getResponseValue(nodeId);
     if (!this._displayNormalized) return value;
     return this._scale * this._aRef * (value / this._responseMaxAbs);

@@ -112,6 +112,7 @@ body {
 .response-legend[hidden] {
   display: none;
 }
+.mode-gradient { background: linear-gradient(90deg, #2554c7, #f3f5f7 50%, #d52b1e); }
 
 #response-legend-title {
   display: block;
@@ -673,6 +674,17 @@ table.modeshape th {
 #controls output { display: block; overflow-wrap: anywhere; }
 #tools-error { color: var(--msg-error-text); }
 #history-chart { display: block; width: 100%; background: var(--bg-input); color: var(--text-primary); cursor: crosshair; border: 1px solid var(--border-color); }
+#response-compare-chart { display: block; width: 100%; background: var(--bg-input); color: var(--text-primary); cursor: crosshair; border: 1px solid var(--border-color); }
+#spectrum-chart { display: block; width: 100%; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-color); }
+#response-compare-chart text, #spectrum-chart text { fill: currentColor; font: 12px sans-serif; }
+#response-compare-chart .history-cursor { stroke: var(--accent); stroke-width: 2; }
+#spectrum-chart .history-line { fill: none; stroke: var(--accent); stroke-width: 2; }
+.history-series-0 { fill: none; stroke: #2554c7; stroke-width: 2; }
+.history-series-1 { fill: none; stroke: #d52b1e; stroke-width: 2; }
+.history-series-2 { fill: none; stroke: #7851a9; stroke-width: 2; }
+.history-label-0 { fill: #2554c7; }
+.history-label-1 { fill: #d52b1e; }
+.history-label-2 { fill: #7851a9; }
 #history-chart text { fill: currentColor; font: 12px sans-serif; }
 #history-chart .history-line { stroke: var(--accent); fill: none; stroke-width: 2; }
 #history-chart .history-cursor { stroke: #d55; stroke-width: 2; }

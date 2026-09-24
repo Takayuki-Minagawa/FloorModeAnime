@@ -1,6 +1,6 @@
 import { getDataIdentity } from './analysis.js';
 
-export const SETTING_IDS = ['chk-undeformed', 'chk-deformed', 'chk-axes', 'chk-grid', 'chk-node-ids', 'chk-highlight', 'show-envelope', 'chk-response-normalization', 'color-undeformed', 'color-deformed', 'width-undeformed', 'width-deformed'];
+export const SETTING_IDS = ['chk-undeformed', 'chk-deformed', 'chk-axes', 'chk-grid', 'chk-node-ids', 'chk-highlight', 'chk-mode-colors', 'show-envelope', 'chk-response-normalization', 'color-undeformed', 'color-deformed', 'width-undeformed', 'width-deformed'];
 export function buildSettings(data, controller, viewer, selectedNode, controls) {
   return { schema_version: 'floor-view-settings/1', identity: data.identity || getDataIdentity(data),
     view: viewer.getViewState(), time: controller.getTime(), mode: controller.getCurrentMode(),

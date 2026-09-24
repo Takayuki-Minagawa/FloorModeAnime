@@ -14,7 +14,7 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 import { THEME, LINE_WIDTH, VIEW, CAMERA_PRESETS } from './constants.js';
 import { computeFloorMetrics, toThree, setThreePosition } from './geometry.js';
 import { analyzeSurface } from './surface.js';
-import { captureSize, canvasBlob, downloadBlob, drawCaptureAnnotations, supportedVideoType } from './capture.js';
+import { captureSize, canvasBlob, downloadBlob, drawCaptureAnnotations, supportedVideoType, responseColor } from './capture.js';
 
 export class FloorViewer {
   /**
@@ -92,10 +92,9 @@ export class FloorViewer {
     this._envelope = null;
     this._captureActive = false;
     this._disposed = false;
-    this._colorWhite = new THREE.Color(0xf3f5f7);
-    this._colorBlue = new THREE.Color(0x2554c7);
-    this._colorRed = new THREE.Color(0xd52b1e);
     this._colorScratch = new THREE.Color();
+    this._modeColoring = false;
+    this._modeColorKey = '';
 
     // 変形線のジオメトリ参照 (updateDeformed で頂点を更新するため)
     this._deformedGeometry = null;
@@ -136,6 +135,8 @@ export class FloorViewer {
   loadFloorData(floorData) {
     this._floorData = floorData;
     this._dataKind = floorData.dataKind ?? 'mode';
+    this._modeColoring = false;
+    this._modeColorKey = '';
     const { nodes, lines } = floorData;
 
     // L_floor・中心座標を算出（geometry.js に一元化）
@@ -515,18 +516,14 @@ export class FloorViewer {
     const positions = this._contourGeometry.getAttribute('position');
     const colors = this._contourGeometry.getAttribute('color');
     const nodes = this._floorData.nodes;
-    const maxAbs = Math.max(
-      Math.abs(responseRange?.min ?? 0),
-      Math.abs(responseRange?.max ?? 0),
-      Number.EPSILON,
-    );
+    const min = responseRange?.min ?? 0;
+    const max = responseRange?.max ?? 0;
 
     this._contourVertexNodeIds.forEach((nodeId, index) => {
       const node = nodes.get(nodeId);
       if (!node) return;
       positions.setXYZ(index, node.y, getDisplacedZ(nodeId), node.x);
-      const normalized = Math.max(-1, Math.min(1, getScalarValue(nodeId) / maxAbs));
-      const color = this._responseColor(normalized);
+      const color = responseColor(getScalarValue(nodeId), min, max, this._colorScratch);
       colors.setXYZ(index, color.r, color.g, color.b);
     });
     positions.needsUpdate = true;
@@ -534,9 +531,37 @@ export class FloorViewer {
     this._contourGeometry.computeBoundingSphere();
   }
 
-  /** Blue → white → red diverging color for a value normalized to [-1,1]. */
-  _responseColor(value) {
-    return this._colorScratch.copy(this._colorWhite).lerp(value < 0 ? this._colorBlue : this._colorRed, Math.abs(value));
+  /** Static signed eigenvector colors, independent of the animation phase. */
+  setModeColoring(enabled, modeNum, sign = 1) {
+    if (this._dataKind !== 'mode' || !this._deformedGeometry || !this._deformedMaterial) return;
+    const active = Boolean(enabled);
+    const key = active ? `${modeNum}:${sign}` : 'off';
+    if (key === this._modeColorKey) return;
+    this._modeColorKey = key;
+    this._modeColoring = active;
+    if (active) {
+      const shape = this._floorData.modes.get(modeNum);
+      if (!shape) return;
+      let maxAbs = 0;
+      for (const value of shape.values()) maxAbs = Math.max(maxAbs, Math.abs(value));
+      const denominator = maxAbs || 1;
+      const colors = [];
+      for (const entry of this._deformedVertexMap) {
+        for (const nodeId of [entry.nodeI, entry.nodeJ]) {
+          const value = sign * (shape.get(nodeId) ?? 0) / denominator;
+          const color = responseColor(value, -1, 1, this._colorScratch);
+          colors.push(color.r, color.g, color.b);
+        }
+      }
+      this._deformedGeometry.setColors(colors);
+      this._deformedMaterial.vertexColors = true;
+      this._deformedMaterial.color.setHex(0xffffff);
+    } else {
+      this._deformedMaterial.vertexColors = false;
+      this._deformedMaterial.color.set(this._userLineStyle.deformedColor ?? this._theme().deformed);
+    }
+    this._deformedMaterial.needsUpdate = true;
+    this._requestRender?.();
   }
 
   /**
@@ -792,7 +817,9 @@ export class FloorViewer {
     };
     return {
       undeformedColor: toHex(this._undeformedMaterial),
-      deformedColor:   toHex(this._deformedMaterial),
+      deformedColor: this._modeColoring
+        ? '#' + new THREE.Color(this._userLineStyle.deformedColor ?? this._theme().deformed).getHexString()
+        : toHex(this._deformedMaterial),
     };
   }
 
@@ -822,7 +849,8 @@ export class FloorViewer {
         this._undeformedMaterial.linewidth = this._userLineStyle.undeformedWidth;
     }
     if (this._deformedMaterial) {
-      if (this._userLineStyle.deformedColor !== null)
+      if (this._modeColoring) this._deformedMaterial.color.setHex(0xffffff);
+      else if (this._userLineStyle.deformedColor !== null)
         this._deformedMaterial.color.set(this._userLineStyle.deformedColor);
       if (this._userLineStyle.deformedWidth !== null)
         this._deformedMaterial.linewidth = this._userLineStyle.deformedWidth;
@@ -850,7 +878,9 @@ export class FloorViewer {
     }
 
     // Deformed lines: ユーザー指定がない場合のみテーマデフォルトを適用
-    if (this._deformedMaterial && this._userLineStyle.deformedColor === null) {
+    if (this._deformedMaterial && this._modeColoring) {
+      this._deformedMaterial.color.setHex(0xffffff);
+    } else if (this._deformedMaterial && this._userLineStyle.deformedColor === null) {
       this._deformedMaterial.color.setHex(
         this._dataKind === 'response' ? theme.response : theme.deformed,
       );

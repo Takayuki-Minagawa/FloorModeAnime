@@ -60,6 +60,7 @@ export function setupUI({ viewer, animController, floorData, beforeCapture = () 
     }
     updateModeShapeTable(animController, true);
     updateHighlight(viewer, animController);
+    if (!isResponse) viewer.setModeColoring?.($(DOM_IDS.chkModeColors).checked, animController.getCurrentMode());
     resetTimeline(animController);
   };
 
@@ -71,6 +72,7 @@ export function setupUI({ viewer, animController, floorData, beforeCapture = () 
   setupResponseControls(animController, refreshModeInfo);
   setupVisibilityControls(applyVisibility);
   setupHighlightControl(viewer, animController);
+  setupModeColorControl(viewer, animController);
   setupLineStyleControls(viewer);
   setupThemeControl(viewer);
   setupLangControl(animController, refreshModeInfo);
@@ -173,10 +175,15 @@ function setupResponseControls(animController, refreshDisplays) {
   const checkbox = $(DOM_IDS.chkResponseNormalization);
   const slider = $(DOM_IDS.scaleSlider);
   const number = $(DOM_IDS.scaleNumber);
-  checkbox.checked = true;
-  animController.setDisplayNormalized(true);
+  const isDisplacement = animController.getResponseQuantity() === 'vertical_displacement';
+  checkbox.checked = isDisplacement;
+  checkbox.disabled = !isDisplacement;
+  slider.disabled = !isDisplacement;
+  if (number) number.disabled = !isDisplacement;
+  animController.setDisplayNormalized(isDisplacement);
 
   const onChange = () => {
+    if (!isDisplacement) return;
     animController.setDisplayNormalized(checkbox.checked);
     slider.disabled = !checkbox.checked;
     if (number) number.disabled = !checkbox.checked;
@@ -204,6 +211,21 @@ function setupHighlightControl(viewer, animController) {
   chk.checked = false;
   const onChange = () => updateHighlight(viewer, animController);
   replaceListener(chk, 'change', onChange, '_onHighlight');
+}
+
+function setupModeColorControl(viewer, animController) {
+  const checkbox = document.getElementById('chk-mode-colors');
+  const modal = animController.getDataKind() !== 'response';
+  document.getElementById('mode-colors-row').hidden = !modal;
+  document.getElementById('mode-legend').hidden = true;
+  $(DOM_IDS.colorDeformed).disabled = false;
+  checkbox.checked = false;
+  if (!modal) return;
+  replaceListener(checkbox, 'change', () => {
+    viewer.setModeColoring?.(checkbox.checked, animController.getCurrentMode());
+    document.getElementById('mode-legend').hidden = !checkbox.checked;
+    $(DOM_IDS.colorDeformed).disabled = checkbox.checked;
+  }, '_onModeColors');
 }
 
 /** 現フレームの表示座標／応答値の出力（CSV / JSON） */
@@ -488,14 +510,16 @@ function updateModeShapeTable(animController, force = false) {
 
 function updateDataKindDisplays(animController) {
   const isResponse = animController.getDataKind() === 'response';
+  const isDisplacement = isResponse && animController.getResponseQuantity() === 'vertical_displacement';
   $(DOM_IDS.modalControls).hidden = isResponse;
   $(DOM_IDS.responseInfo).hidden = !isResponse;
-  $(DOM_IDS.responseNormalizationRow).hidden = !isResponse;
+  $(DOM_IDS.responseNormalizationRow).hidden = !isDisplacement;
+  document.getElementById('scale-controls').hidden = isResponse && !isDisplacement;
   $(DOM_IDS.responseLegend).hidden = !isResponse;
 
   const meaning = $(DOM_IDS.displayMeaning);
   const meaningKey = isResponse
-    ? (animController.isDisplayNormalized()
+    ? (!isDisplacement ? 'displayMeaningResponseScalar' : animController.isDisplayNormalized()
       ? 'displayMeaningResponseNormalized'
       : 'displayMeaningResponsePhysical')
     : 'displayMeaningMode';

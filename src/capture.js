@@ -1,5 +1,21 @@
 import { Color } from 'three';
 
+const ZERO_COLOR = new Color(0xf3f5f7);
+const NEGATIVE_COLOR = new Color(0x2554c7);
+const POSITIVE_COLOR = new Color(0xd52b1e);
+const ENVELOPE_COLOR = new Color(0x08519c);
+
+/** One color contract for WebGL surfaces, CSS legends and captured images. */
+export function responseColor(value, min, max, target = new Color()) {
+  if (min >= 0) {
+    const ratio = max > min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0;
+    return target.copy(ZERO_COLOR).lerp(ENVELOPE_COLOR, ratio);
+  }
+  const maxAbs = Math.max(Math.abs(min), Math.abs(max), Number.EPSILON);
+  const ratio = Math.max(-1, Math.min(1, value / maxAbs));
+  return target.copy(ZERO_COLOR).lerp(ratio < 0 ? NEGATIVE_COLOR : POSITIVE_COLOR, Math.abs(ratio));
+}
+
 /** Capture helpers shared by PNG and MediaRecorder. */
 export function captureSize(width, height, fallbackWidth, fallbackHeight) {
   const valid = value => Number.isInteger(value) && value >= 64 && value <= 8192;
@@ -43,13 +59,13 @@ export function canvasBlob(canvas, type = 'image/png') {
  * vertex colors, then encode stops as sRGB for Canvas/CSS gradients.
  */
 export function responseColorStops(min, max) {
-  const maxAbs = Math.max(Math.abs(min), Math.abs(max), Number.EPSILON);
-  const white = new Color(0xf3f5f7), blue = new Color(0x2554c7), red = new Color(0xd52b1e);
   const color = new Color();
   return Array.from({ length: 21 }, (_, i) => {
     const ratio = i / 20;
-    const value = (min / maxAbs) * (1 - ratio) + (max / maxAbs) * ratio;
-    return [i / 20, color.copy(white).lerp(value < 0 ? blue : red, Math.abs(value)).getStyle()];
+    // Interpolating the normalized endpoints avoids overflowing min/max spans.
+    const scale = Math.max(Math.abs(min), Math.abs(max), Number.EPSILON);
+    const value = ((min / scale) * (1 - ratio) + (max / scale) * ratio) * scale;
+    return [ratio, responseColor(value, min, max, color).getStyle()];
   });
 }
 

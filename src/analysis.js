@@ -104,6 +104,73 @@ export function compareModes(dataA, dataB) {
   return { rows, nodeIds, lengthUnit: unit, component: 'uz', weighting: 'none' };
 }
 
+/** Compare like-for-like physical archives without silently reordering time or geometry. */
+export function compareResponses(dataA, dataB) {
+  if (dataA?.dataKind !== 'response' || dataB?.dataKind !== 'response') {
+    throw new Error('E_COMPARE_KIND: two physical response archives are required');
+  }
+  const a = dataA.response, b = dataB.response;
+  if (a.quantity !== b.quantity || a.unit !== b.unit) {
+    throw new Error('E_COMPARE_QUANTITY: response quantities and units must match');
+  }
+  const responseCoordinateContract = response => ({
+    verticalAxis: response.coordinates?.verticalAxis,
+    handedness: response.coordinates?.rightHanded === true ? 'right' : response.coordinates?.handedness,
+  });
+  if (canonicalJson(responseCoordinateContract(a)) !== canonicalJson(responseCoordinateContract(b))) {
+    throw new Error('E_COMPARE_COORDINATES: coordinate contracts differ');
+  }
+  const nodeIds = [...dataA.nodes.keys()].sort((x, y) => x - y);
+  if (nodeIds.length !== dataB.nodes.size || nodeIds.some(id => !dataB.nodes.has(id))) {
+    throw new Error('E_COMPARE_NODES: node ID sets differ');
+  }
+  const extent = data => ['x', 'y', 'z'].map(axis => {
+    let min = Infinity, max = -Infinity;
+    for (const node of data.nodes.values()) { min = Math.min(min, node[axis]); max = Math.max(max, node[axis]); }
+    return max - min;
+  });
+  const tolerance = EPS * Math.max(1, ...extent(dataA), ...extent(dataB));
+  for (const id of nodeIds) {
+    if (['x', 'y', 'z'].some(axis => Math.abs(dataA.nodes.get(id)[axis] - dataB.nodes.get(id)[axis]) > tolerance)) {
+      throw new Error(`E_COMPARE_COORDINATES: coordinates differ for node ${id}`);
+    }
+  }
+  const faces = data => [...data.faces].sort((x, y) => x.id - y.id)
+    .map(face => [face.id, face.nodeIds]);
+  if (canonicalJson(faces(dataA)) !== canonicalJson(faces(dataB))) {
+    throw new Error('E_COMPARE_FACES: face connectivity differs');
+  }
+  if (a.times.length !== b.times.length || a.times.some((time, index) => time !== b.times[index])) {
+    throw new Error('E_COMPARE_TIME: time samples must match exactly');
+  }
+  const indexA = new Map(a.nodeOrder.map((id, index) => [id, index]));
+  const indexB = new Map(b.nodeOrder.map((id, index) => [id, index]));
+  const valueAt = (nodeId, frame) => {
+    const columnA = indexA.get(nodeId), columnB = indexB.get(nodeId);
+    if (columnA === undefined || columnB === undefined || !Number.isInteger(frame) || frame < 0 || frame >= a.times.length) {
+      throw new Error('E_COMPARE_INDEX: node or frame is unavailable');
+    }
+    const valueA = a.values[frame][columnA], valueB = b.values[frame][columnB];
+    const delta = valueB - valueA;
+    if (!Number.isFinite(delta)) throw new Error('E_COMPARE_NONFINITE: response difference overflows');
+    return { valueA, valueB, delta };
+  };
+  let maxAbs = -1, maxNodeId = null, maxTime = a.times[0];
+  for (let frame = 0; frame < a.times.length; frame++) {
+    for (const nodeId of nodeIds) {
+      const magnitude = Math.abs(valueAt(nodeId, frame).delta);
+      if (magnitude > maxAbs) { maxAbs = magnitude; maxNodeId = nodeId; maxTime = a.times[frame]; }
+    }
+  }
+  return {
+    nodeIds, times: a.times, quantity: a.quantity, unit: a.unit,
+    caseA: a.caseId, caseB: b.caseId, maxAbs, maxNodeId, maxTime,
+    range: { min: -maxAbs, max: maxAbs },
+    valueAt,
+    history(nodeId) { return a.times.map((time, frame) => ({ time, ...valueAt(nodeId, frame) })); },
+  };
+}
+
 /** Content identity for display settings. Map keys and numerical content are included. */
 export function getDataIdentity(data) {
   const serialize = (value) => {

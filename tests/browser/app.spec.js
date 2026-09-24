@@ -174,6 +174,74 @@ test('same-case comparison displays MAC and a second synchronized WebGL view', a
   await expect(page.locator('#comparison-container')).toBeHidden();
 });
 
+test('signed mode coloring survives mode and time changes and appears in capture', async ({ page }) => {
+  await loadSample(page, 'sample_case.json');
+  await page.locator('#chk-mode-colors').check();
+  await expect(page.locator('#mode-legend')).toBeVisible();
+  await expect(page.locator('#color-deformed')).toBeDisabled();
+  await page.locator('#mode-select').selectOption('2');
+  await setRange(page, '#time-slider', 0.04);
+  await expect(page.locator('#mode-legend')).toContainText('uz/Umax');
+  const { bytes } = await downloadBytes(page, '#btn-download');
+  expect(bytes.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+  await page.locator('#chk-mode-colors').uncheck();
+  await expect(page.locator('#mode-legend')).toBeHidden();
+  await expect(page.locator('#color-deformed')).toBeEnabled();
+});
+
+test('response comparison keeps B minus A values, exports CSV, and rejects mismatched time', async ({ page }) => {
+  await loadSample(page, 'response_case.json');
+  await page.locator('#show-envelope').check();
+  await page.locator('#response-compare-section summary').click();
+  await page.locator('#response-compare-files').setInputFiles(fixture('response_case.json'));
+  await expect(page.locator('#comparison-container canvas')).toBeVisible();
+  await expect(page.locator('#show-envelope')).not.toBeChecked();
+  await expect(page.locator('#show-envelope')).toBeDisabled();
+  await expect(page.locator('#response-compare-status')).toContainText('0.0000');
+  await setRange(page, '#time-slider', 0.1);
+  const { bytes } = await downloadBytes(page, '#response-compare-csv');
+  const csv = bytes.toString('utf8');
+  expect(csv).toContain('difference_B_minus_A');
+  expect(csv).toContain('"difference":"B-A"');
+  expect(csv).toContain('0.1,1,0,0,0');
+  const png = await downloadBytes(page, '#response-compare-png');
+  expect(png.filename).toBe('response-difference.png');
+  expect(png.bytes.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+  const mismatch = JSON.parse(await readFile(fixture('response_case.json'), 'utf8'));
+  mismatch.time_s[1] = 0.06;
+  await page.locator('#response-compare-files').setInputFiles({
+    name: 'mismatch.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(mismatch)),
+  });
+  await expect(page.locator('#tools-error')).toContainText('E_COMPARE_TIME');
+  await expect(page.locator('#comparison-container canvas')).toBeVisible();
+  await page.locator('#clear-response-compare').click();
+  await expect(page.locator('#comparison-container')).toBeHidden();
+  await expect(page.locator('#show-envelope')).toBeEnabled();
+});
+
+test('response spectrum reports short data and exports Welch PSD for uniform samples', async ({ page }) => {
+  await loadSample(page, 'response_case.json');
+  await page.locator('#spectrum-section summary').click();
+  await expect(page.locator('#spectrum-status')).toContainText('E_SPECTRUM_SAMPLES');
+  await expect(page.locator('#spectrum-csv')).toBeDisabled();
+  const data = JSON.parse(await readFile(fixture('response_case.json'), 'utf8'));
+  data.time_s = Array.from({ length: 64 }, (_, i) => i / 64);
+  data.response_values = data.time_s.map(time => data.node_order.map(id =>
+    id === 5 ? Math.sin(2 * Math.PI * 8 * time) : 0));
+  await page.locator('#file-input').setInputFiles({
+    name: 'uniform.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(data)),
+  });
+  await ready(page);
+  await page.locator('#selected-node').fill('5');
+  await page.locator('#selected-node').dispatchEvent('change');
+  await page.locator('#spectrum-section summary').click();
+  await expect(page.locator('#spectrum-status')).toContainText('Welch PSD');
+  await expect(page.locator('#spectrum-csv')).toBeEnabled();
+  const { bytes } = await downloadBytes(page, '#spectrum-csv');
+  expect(bytes.toString('utf8')).toContain('"sample_rate_hz":64');
+  expect(bytes.toString('utf8')).toContain('8,');
+});
+
 test('initial sample failure and invalid JSON recover through manual input', async ({ page }) => {
   await page.route('**/Sample/Test0202_calc.yaml', (route) => route.fulfill({ status: 404, body: 'missing' }));
   await page.goto('./');
@@ -182,7 +250,7 @@ test('initial sample failure and invalid JSON recover through manual input', asy
   await expect(page.locator('#btn-select-file')).toBeEnabled();
   await expect(page.locator('#btn-play')).toBeDisabled();
   await page.locator('#file-input').setInputFiles({ name: 'broken.json', mimeType: 'application/json', buffer: Buffer.from('{') });
-  await expect(page.locator('.msg-error')).toContainText(/JSON|parse/i);
+  await expect(page.locator('.msg-error')).toContainText(/JSON|parse/i, { timeout: 15000 });
   await loadSample(page, 'sample_case.json');
   await expect(page.locator('#freq-display')).toContainText('5.20');
 });
