@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/svg+xml" href="/FloorModeAnime/favicon.svg">
   <title>Floor Mode Anime</title>
-  <script type="module" crossorigin src="/FloorModeAnime/assets/index-CPL6GqS_.js"></script>
+  <script type="module" crossorigin src="/FloorModeAnime/assets/index-0P1mtagL.js"></script>
   <link rel="modulepreload" crossorigin href="/FloorModeAnime/assets/yaml-DRtBMuYi.js">
   <link rel="modulepreload" crossorigin href="/FloorModeAnime/assets/three-core-C-amcp5E.js">
-  <link rel="stylesheet" crossorigin href="/FloorModeAnime/assets/index-4rsxS-iE.css">
+  <link rel="stylesheet" crossorigin href="/FloorModeAnime/assets/index-B5A6thkh.css">
 </head>
 <body>
   <div id="app-container">
@@ -48,9 +48,25 @@
           <span id="file-name-display">選択なし</span>
         </div>
         <span class="file-hint" data-i18n="fileInputHint">calc YAML・modal result JSON・任意のmanifest、または応答archive JSONを読み込みます</span>
+        <label for="sample-select" data-i18n="labelSample">サンプル</label>
+        <div class="file-row">
+          <select id="sample-select">
+            <option value="Test0202">Test0202 (modal, manifest)</option>
+            <option value="response_case">response_case (physical response)</option>
+            <option value="sample_case">sample_case (legacy JSON)</option>
+          </select>
+          <button id="btn-load-sample" type="button" data-i18n="btnLoadSample">サンプルを読込</button>
+        </div>
       </div>
 
-      <div class="control-group" aria-live="polite"><span id="load-status" data-i18n="loadReading"></span><button id="cancel-load" type="button" data-i18n="cancel" hidden>取消</button></div>
+      <div class="control-group" aria-live="polite"><span id="load-status" data-i18n="loadReading"></span><button id="cancel-load" type="button" data-i18n="cancel" hidden>取消</button><span id="load-summary" class="file-hint"></span></div>
+
+      <details id="paste-section">
+        <summary data-i18n="labelPaste">テキストから読込</summary>
+        <textarea id="paste-input" rows="4" spellcheck="false" data-i18n-aria="ariaPasteInput"></textarea>
+        <button id="btn-load-paste" type="button" data-i18n="btnLoadPaste">貼り付けを読込</button>
+        <span class="file-hint" data-i18n="pasteHint">legacy モード JSON または応答archive JSON を貼り付けて読み込みます</span>
+      </details>
 
       <!-- モード選択 -->
       <div id="modal-controls" class="control-group">
@@ -86,6 +102,7 @@
       <div class="control-group">
         <label data-i18n="labelTime">時間</label>
         <span id="time-display">t = 0.000 s</span>
+        <span id="frame-display" class="file-hint"></span>
       </div>
 
       <!-- タイムライン（スクラブ・コマ送り） -->
@@ -114,7 +131,7 @@
         <label for="speed-slider"><span data-i18n="labelSpeed">速度</span>: <span id="speed-value">1.0</span>x</label>
         <div class="slider-row">
           <input id="speed-slider" type="range" min="0.2" max="2.0" step="0.1" value="1.0">
-          <input id="speed-number" type="number" min="0.2" max="2.0" step="0.1" value="1.0" class="num-input">
+          <input id="speed-number" type="number" min="0.2" max="2.0" step="0.1" value="1.0" class="num-input" data-i18n-aria="ariaSpeedNumber">
         </div>
       </div>
 
@@ -123,7 +140,7 @@
         <label for="scale-slider"><span data-i18n="labelScale">倍率</span>: <span id="scale-value">1.0</span></label>
         <div class="slider-row">
           <input id="scale-slider" type="range" min="0.5" max="3.0" step="0.1" value="1.0">
-          <input id="scale-number" type="number" min="0.5" max="3.0" step="0.1" value="1.0" class="num-input">
+          <input id="scale-number" type="number" min="0.5" max="3.0" step="0.1" value="1.0" class="num-input" data-i18n-aria="ariaScaleNumber">
         </div>
         <label id="response-normalization-row" class="inline-check" hidden>
           <input id="chk-response-normalization" type="checkbox" checked>
@@ -140,7 +157,7 @@
           <label><input id="chk-axes"       type="checkbox" checked> <span data-i18n="chkAxes">軸</span></label>
           <label><input id="chk-grid"       type="checkbox" checked> <span data-i18n="chkGrid">グリッド</span></label>
           <label><input id="chk-node-ids"   type="checkbox" checked> <span data-i18n="chkNodeIds">節点番号</span></label>
-          <label><input id="chk-highlight"  type="checkbox"> <span data-i18n="chkHighlight">最大変位</span></label>
+          <label><input id="chk-highlight"  type="checkbox"> <span data-i18n="chkHighlight">最大振幅</span></label>
           <label id="mode-colors-row"><input id="chk-mode-colors" type="checkbox"> <span data-i18n="chkModeColors">モードの正負を色分け</span></label>
         </div>
       </div>
@@ -151,20 +168,20 @@
         <div class="line-style-row">
           <span data-i18n="chkUndeformed">未変形</span>
           <input id="color-undeformed" type="color" value="#888888" title="未変形線の色">
-          <input id="width-undeformed" type="range" min="1" max="10" step="0.5" value="2">
+          <input id="width-undeformed" type="range" min="1" max="10" step="0.5" value="2" data-i18n-aria="ariaWidthUndeformed">
           <span id="width-undeformed-val">2.0</span>
         </div>
         <div class="line-style-row">
           <span data-i18n="chkDeformed">変形</span>
           <input id="color-deformed" type="color" value="#ff4444" title="変形線の色">
-          <input id="width-deformed" type="range" min="1" max="10" step="0.5" value="3">
+          <input id="width-deformed" type="range" min="1" max="10" step="0.5" value="3" data-i18n-aria="ariaWidthDeformed">
           <span id="width-deformed-val">3.0</span>
         </div>
       </div>
 
       <!-- テーマ切替 + PNG保存 -->
       <div class="control-group control-row">
-        <button id="btn-theme" type="button" data-i18n="btnThemeLight">&#9788; ライト</button>
+        <button id="btn-theme" type="button" data-i18n="btnThemeToDark" aria-pressed="false">&#9790; ダークに切替</button>
         <button id="btn-download" type="button" data-i18n="btnSavePng">&#128190; PNG保存</button>
       </div>
 
@@ -204,6 +221,7 @@
       </details>
       <details id="compare-section">
         <summary data-i18n="compare">ケース比較・鉛直MAC</summary>
+        <label for="compare-files" data-i18n="ariaCompareFiles">比較先のモードデータ（calc YAML + result JSON + manifest）</label>
         <input id="compare-files" type="file" accept=".json,.yaml,.yml" multiple>
         <label for="compare-mode" data-i18n="compareMode">比較モード</label><select id="compare-mode"></select>
         <label><input id="compare-sign" type="checkbox"> <span data-i18n="invertSign">比較形状の符号を反転</span></label>
