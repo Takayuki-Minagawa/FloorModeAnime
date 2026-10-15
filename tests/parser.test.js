@@ -99,7 +99,7 @@ describe('parseFloorData', () => {
   });
 
   it('throws on invalid JSON', () => {
-    expect(() => parseFloorData('{ not valid json')).toThrow(/JSON parse error/);
+    expect(() => parseFloorData('{ not valid json')).toThrow(/E_JSON_PARSE/);
   });
 
   it('treats special JSON keys as data without mutating object prototypes', () => {

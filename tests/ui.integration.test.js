@@ -170,10 +170,15 @@ describe('UI integration (setupUI against real index.html)', () => {
     expect(parseFloat(slider.value)).toBeCloseTo(2.5, 6);
   });
 
-  it('保存済みテーマのDOM状態にボタン文言を同期する', () => {
+  it('保存済みテーマのDOM状態にボタン文言（切替先）と aria-pressed を同期する', () => {
     document.documentElement.setAttribute('data-theme', 'dark');
     setupUI({ viewer, animController, floorData, onFileLoad: () => {} });
-    expect(document.getElementById('btn-theme').textContent).toContain('ダーク');
+    const button = document.getElementById('btn-theme');
+    expect(button.textContent).toContain('ライト');
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    button.click();
+    expect(button.textContent).toContain('ダーク');
+    expect(button.getAttribute('aria-pressed')).toBe('false');
   });
 
   it('保存済み言語の再読込時に言語切替ボタンも同期する', () => {

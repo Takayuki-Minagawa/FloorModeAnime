@@ -1,6 +1,6 @@
 # Floor Mode Anime
 
-> **Ver. 1.4.0**
+> **Ver. 1.5.0**
 
 床構面の鉛直モード形と、版管理された物理応答アーカイブをブラウザで 3D 表示する静的 Web アプリです。GitHub Pages で動作し、サーバー処理は必要ありません。
 
@@ -25,7 +25,10 @@
 - 2秒／4秒の周期固定観察再生、表示条件JSONの保存／復元、対応形式の動画保存
 - Workerによる非同期読込・進捗・取消、初期サンプル失敗からの手動読込復帰
 - 停止中の必要時描画、応答フレームキャッシュ、大規模数値表のページ分割
-- 入力エラー一覧と `E_XXX_YYY`／`W_XXX_YYY` コード
+- 入力エラー一覧と `E_XXX_YYY`／`W_XXX_YYY` コード、主要コードの日本語／英語の対処ヒント
+- 自動操作向け入口: URL クエリによる初期状態指定、`window.floorModeAnime` 公開 API、`body` の `data-*` 状態属性
+- サンプル選択・テキスト貼り付けによる読込（ファイルダイアログ不要）、読込概要（節点数・要素数・モード数・単位）の常時表示
+- 周期に応じた時刻表示桁数（3〜6 桁）とコマ番号表示、全操作要素のアクセシブル名、axe-core による WCAG 2.1 AA 検査
 
 ## セットアップ
 
@@ -159,9 +162,37 @@ z_i'(t) = z_i + u_i(t)
 | Mode colors | 正規化固有ベクトルの鉛直成分 `uz/Umax` を符号付きで表示。瞬間変位ではない |
 | Export | モード表示座標または物理応答 archive 値を CSV／JSON 化 |
 | Save PNG | 停止中のみ保存 |
-| Language / Theme | JA/EN、ライト/ダーク |
+| Language / Theme | JA/EN、ライト/ダーク。どちらのボタンも切替先を表示し、テーマは `aria-pressed` で現在状態を示す |
+| Sample / Paste | 公開サンプル 3 種の選択読込、legacy JSON／応答 archive JSON の貼り付け読込 |
+| Load summary | 読込完了時に節点数・要素数・モード数・単位（応答は面数・時刻数・応答量）を表示 |
+| Frame | モードデータではコマ番号 `k / 60` を時刻の下に表示。時刻の小数桁は周期に応じて 3〜6 桁 |
 
 キーボードは `Space` が再生／停止、`←`／`→` がコマ移動、`R` が時刻リセットです。入力欄にフォーカスがある間は無効です。
+
+## 自動操作（URL パラメータ・公開 API）
+
+ブラウザ自動操作や再現用リンクのために、ファイルダイアログを経由しない入口を用意しています。
+
+### URL クエリ
+
+| パラメータ | 値 | 動作 |
+|---|---|---|
+| `sample` | `Test0202`（既定）/ `response_case` / `sample_case` | 起動時に読み込む公開サンプル |
+| `src` | カンマ区切りの URL | CORS 許可済みの URL からファイルを取得して読込（`sample` より優先） |
+| `lang` / `theme` | `ja` / `en`、`light` / `dark` | 読込前に適用 |
+| `mode` | モード番号 | 存在するモードのみ適用 |
+| `t` | 秒 | 時刻を移動（タイムライン・数値表も同期） |
+| `view` | `iso` / `top` / `front` / `side` | 視点プリセット |
+| `node` | 節点 ID | 節点の確認で選択 |
+| `scale` / `speed` / `obs` | 倍率 / 速度 / `0`,`2`,`4` | 表示倍率・再生速度・観察用再生 |
+
+例: `?sample=response_case&t=0.1&view=top&node=5&lang=en`
+
+### 状態属性と公開 API
+
+`body` に `data-ready`、`data-load-state`、`data-data-kind`、`data-mode`、`data-time`、`data-playing`、`data-selected-node` を公開します。`window.floorModeAnime` は `load(files|[{name,text}], name)`、`loadSample(key)`、`cancelLoad()`、`getState()`、`setMode(n)`、`setTime(t)`、`step(±1)`、`play()`、`stop()`、`selectNode(id)`、`setView(preset)`、`setObservationPeriod(0|2|4)`、`setScale(s)`、`setSpeed(v)` を持ち、すべて既存 UI のイベント経由で動作するため画面表示と食い違いません。`getState()` は現在のモード・時刻・再生状態・選択節点・診断メッセージなどを JSON で返します。
+
+診断メッセージには `E_`／`W_` コードに加えて、対処方法の要約（日本語／英語）を添えます。`alert()` は使わず、通知はすべて画面内（`#tools-error`、`#load-status`、診断パネル）に出します。
 
 ## 解析結果の確認と資料出力
 
@@ -229,6 +260,10 @@ npm run benchmark:browser # ローカルVite＋Chromiumで読込・RAF・ヒー�
 
 開発中の検証と本番ビルドはローカルで実行します。リポジトリ独自の GitHub Actions workflow は使用しません。golden と negative test には、順序入替え、単位混在、ID 重複、hash 不一致、正規化不明、非有限 full DOF、応答次元／単位違反を含みます。
 
+### Ver. 1.5.0 の実行記録（2026-10-15）
+
+公開サイトの全機能確認で見つかった不具合 16 件と自動操作向け要望を反映しました。Node.js 22.18.0 でローカルの lint、237 単体／統合テスト、production build を通過しました。Chromium、Firefox、WebKit の画面テストは既存 16 件に自動操作・アクセシビリティ 3 件を加えた各 19 件（合計 57 件）が成功しました。アクセシビリティ検査は `@axe-core/playwright` 4.13.0 で WCAG 2.1 AA タグをライト／ダーク両テーマで実行し、再生ボタンとホバー色のコントラストを 4.5:1 以上に修正しました。
+
 ### Ver. 1.4.0 の実行記録（2026-09-24）
 
 応答量別の幾何表示、物理応答 A/B 差分、モード符号色、Welch PSD を追加しました。ローカルで lint、218 単体／統合テスト、production build を通過しました。Chromium、Firefox、WebKit の画面テストも各 16 件（合計 48 件）通過し、新機能の操作と出力を確認しました。
@@ -264,6 +299,7 @@ src/
   viewer.js       three.js 線・床面コンター・PNG
   export.js       意味を分離した CSV/JSON
   ui.js           基本UI・共通再生操作の配線
+  automation.js   URLクエリ・公開API・状態スナップショット
   shell.js        データなしでも利用可能なファイル読込
   tools-ui.js     節点確認・ピーク・設定・動画
   compare-ui.js   2ケース比較と同期カメラ
@@ -291,6 +327,7 @@ tests/            Vitest unit/integration/golden tests
 | three.js | 0.185.1 | WebGL、OrbitControls、太線、CSS2D label |
 | yaml | 2.9.0 | model/manifest YAML |
 | Vitest | 4.1.10 | unit/integration tests |
+| @axe-core/playwright | 4.13.0 | 画面テスト内の WCAG 2.1 AA 検査（開発時のみ） |
 | Vanilla JS | ESM | application |
 
 three.js 本体、addons、YAML parser、アプリ本体を分割し、単一 JS bundle のサイズ警告を避けています。
@@ -309,6 +346,7 @@ GitHub の仕様では、ブランチ公開でも Pages 自体の配布時に Gi
 
 | バージョン | 日付 | 内容 |
 |---|---|---|
+| **1.5.0** | 2026-10-15 | 自動操作向け入口（URLクエリ・公開API・状態属性・サンプル選択・貼り付け読込）、診断ヒント、時刻桁数とコマ番号、アクセシブル名と axe 検査、不具合修正（条件復元後のタイムライン、言語切替時の警告、YAML単体のエラー、凡例と警告の重なり、alert 廃止ほか） |
 | **1.4.0** | 2026-09-24 | 応答量別の幾何表示、物理応答A/B差分、モード符号色、Welch PSD、独自Actionsを使わない公開手順 |
 | **1.3.0** | 2026-09-07 | 状態同期・読込復帰、必要時描画、面分割検証、時刻歴・ピーク・包絡、比較MAC、条件付きPNG・動画、表示条件保存、Worker読込、ローカルブラウザ検証 |
 | 1.2.0 | 2026-08-08 | 意味ラベル修正、manifest gate、Test0202 golden、物理応答コンター、公開 schema、依存更新、audit 解消、code splitting |

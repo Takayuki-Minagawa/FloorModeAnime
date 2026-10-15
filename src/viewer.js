@@ -37,6 +37,8 @@ export class FloorViewer {
     this._css2dRenderer.domElement.style.top = '0';
     this._css2dRenderer.domElement.style.left = '0';
     this._css2dRenderer.domElement.style.pointerEvents = 'none';
+    // 節点ラベルは視覚補助のみ。支援技術・自動操作のツリーからは除外する
+    this._css2dRenderer.domElement.setAttribute('aria-hidden', 'true');
     canvasContainer.appendChild(this._css2dRenderer.domElement);
 
     // シーン
@@ -60,7 +62,8 @@ export class FloorViewer {
     this._pointerDown = event => { this._pointerStart = [event.clientX, event.clientY]; };
     this._pointerUp = event => this._pickNode(event);
     this._renderer.domElement.addEventListener('pointerdown', this._pointerDown);
-    this._renderer.domElement.addEventListener('pointerup', this._pointerUp);
+    // click は pointerdown/pointerup の組を取れない自動操作ツールでも発火する
+    this._renderer.domElement.addEventListener('click', this._pointerUp);
 
     // グループ管理（表示ON/OFF用）
     this._undeformedGroup = new THREE.Group();
@@ -371,10 +374,13 @@ export class FloorViewer {
   onNodeSelect(callback) { this._onNodeSelect = callback; }
 
   _pickNode(event) {
-    if (this._captureActive || !this._onNodeSelect || !this._floorData || !this._pointerStart ||
-      event.button !== 0 || Math.hypot(event.clientX - this._pointerStart[0], event.clientY - this._pointerStart[1]) > 5) return;
+    const start = this._pointerStart;
+    this._pointerStart = null;
+    if (this._captureActive || !this._onNodeSelect || !this._floorData || event.button !== 0) return;
+    // ドラッグ（回転・パン）の終端では選択しない。pointerdown を取れなかった場合はクリックとして扱う
+    if (start && Math.hypot(event.clientX - start[0], event.clientY - start[1]) > 5) return;
     const rect = this._renderer.domElement.getBoundingClientRect();
-    let selected = null, distance = 16;
+    let selected = null, distance = 20;
     const projected = new THREE.Vector3();
     for (const node of this._floorData.nodes.values()) {
       const z = this._envelope || !this._deformedGroup.visible ? node.z : (this._lastDisplacedZ?.(node.id) ?? node.z);
@@ -779,7 +785,7 @@ export class FloorViewer {
     // レンダラー破棄
     if (this._renderer) {
       this._renderer.domElement.removeEventListener('pointerdown', this._pointerDown);
-      this._renderer.domElement.removeEventListener('pointerup', this._pointerUp);
+      this._renderer.domElement.removeEventListener('click', this._pointerUp);
       this._renderer.dispose();
       if (this._renderer.domElement && this._renderer.domElement.parentNode) {
         this._renderer.domElement.parentNode.removeChild(this._renderer.domElement);

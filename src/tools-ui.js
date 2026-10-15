@@ -1,5 +1,6 @@
 /** Analysis panels: history, peaks, view settings and annotated capture. */
-import { t, getLang } from './i18n.js';
+import { t, getLang, issueHint } from './i18n.js';
+import { syncPlaybackDisplays } from './ui.js';
 import { computeResponsePeaks, getNodeHistory } from './analysis.js';
 import { playbackAction } from './playback.js';
 import { drawHistory, drawSpectrum } from './history-chart.js';
@@ -19,7 +20,11 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
   let spectrum = null, spectrumKey = '';
   let settingsLoad = null, settingsGeneration = 0;
   let recording = null, disposed = false, lastMetadata = '', peaks = response ? (data.peaks || computeResponsePeaks(data)) : null;
-  const error = e => { $('tools-error').textContent = e.message || String(e); };
+  const error = e => {
+    const message = e.message || String(e);
+    const hint = issueHint(message);
+    $('tools-error').textContent = hint ? `${message}\n${hint}` : message;
+  };
   $('tools-error').textContent = ''; $('video-status').textContent = '';
   $('history-controls').hidden = !response;
   $('compare-section').hidden = response;
@@ -31,17 +36,29 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
   $('spectrum-status').textContent = '';
   $('spectrum-csv').disabled = true;
   $('selected-node').value = String(selected);
+  document.body.dataset.selectedNode = String(selected);
   // Numeric entry works for all IDs; cap datalist DOM size for large models.
   $('node-options').replaceChildren(...controller.getNodeIds().slice(0, 500).map(id => new Option(String(id), String(id))));
   viewer.setSelectedNode(selected);
   const select = id => {
     if (recording) return;
-    if (!data.nodes.has(id)) { error(new Error(`E_NODE_SELECT: ${t('invalidNode')}`)); return; }
+    if (!data.nodes.has(id)) {
+      // 無効な ID は欄に残さず、現在の選択へ戻す
+      $('selected-node').value = String(selected);
+      error(new Error(`E_NODE_SELECT: ${t('invalidNode')}`));
+      return;
+    }
     $('tools-error').textContent = ''; selected = id; $('selected-node').value = String(id);
+    document.body.dataset.selectedNode = String(id);
     viewer.setSelectedNode(id); chartKey = ''; spectrumKey = ''; spectrum = null;
     $('spectrum-csv').disabled = true; requestRender();
   };
-  const seek = time => { if (recording) return; playbackAction(controller, 'seek', time); requestRender(); };
+  const seek = time => {
+    if (recording) return;
+    playbackAction(controller, 'seek', time);
+    syncPlaybackDisplays(controller);
+    requestRender();
+  };
   const comparison = response
     ? setupResponseComparison({ viewer, controller, data, on, requestRender, error,
       getSelectedNode: () => selected, seek, beforeCapture })
@@ -110,7 +127,8 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
         $(`${prefix}-slider`).value = String(value); $(`${prefix}-slider`).dispatchEvent(new Event('input', { bubbles: true }));
       }
       controller.setObservationPeriod(state.observationPeriod); $('observation-period').value = String(state.observationPeriod || 0);
-      controller.setTime(state.time); viewer.setViewState(state.view); select(state.selectedNode);
+      controller.setTime(state.time); syncPlaybackDisplays(controller);
+      viewer.setViewState(state.view); select(state.selectedNode);
       beforeCapture(); requestRender();
     } catch (e) { if (!disposed && generation === settingsGeneration && e.name !== 'AbortError') error(e); }
     finally { if (generation === settingsGeneration) { settingsLoad = null; requestRender(); } }
@@ -118,7 +136,7 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
   on($('save-video'), 'click', async () => {
     if (recording) return;
     if (pendingWork()) { error(new Error(t('busyOperation'))); return; }
-    if (controller.isPlaying()) { error(new Error(t('alertPngStop'))); return; }
+    if (controller.isPlaying()) { error(new Error(t('alertVideoStop'))); return; }
     const duration = Number($('video-duration').value);
     if (!Number.isFinite(duration) || duration < 1 || duration > 30) { error(new Error(t('invalidDuration'))); return; }
     recording = new AbortController(); document.body.dataset.recording = 'true';
@@ -131,7 +149,11 @@ export function setupAnalysisTools({ viewer, controller, data, requestRender, be
     try {
       beforeCapture();
       const width = Number($('capture-size').value);
-      await viewer.recordVideo({ duration, fps: 30, width, height: Math.round(width * .625), background: $('capture-background').value || undefined, signal: recording.signal, filename: 'floor-animation',
+      const base = String(data.meta?.title || data.response?.caseId || 'untitled').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'untitled';
+      const filename = response
+        ? `floorresponse_${base}_t${time.toFixed(3)}_${duration}s`
+        : `floormode_${base}_mode${controller.getCurrentMode()}_t${time.toFixed(3)}_${duration}s`;
+      await viewer.recordVideo({ duration, fps: 30, width, height: Math.round(width * .625), background: $('capture-background').value || undefined, signal: recording.signal, filename,
         onFrame: seconds => {
           const rate = controller.getObservationPeriod() ? 1 / (controller.getFreqHz() * controller.getObservationPeriod()) : controller.getSpeed();
           controller.setTime(time + seconds * rate); beforeCapture();

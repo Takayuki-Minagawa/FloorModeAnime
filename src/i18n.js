@@ -68,6 +68,26 @@ const dict = {
     envelopeMeaning: "包絡: 各節点の全時刻最大絶対値を未変形面に表示（同一時刻の変形ではありません）",
     undefinedMac: "評価不能",
     samePhase: "同一位相で比較",
+    loadCancelledKeep: '取消しました（前回のデータを表示中）',
+    alertVideoStop: '動画保存はアニメーション停止中のみ開始できます。',
+    btnThemeToDark: '☾ ダークに切替',
+    btnThemeToLight: '☀ ライトに切替',
+    frameDisplay: 'コマ {k} / {n}',
+    habNone: '該当なし（歩行帯 1.5–2.5 Hz・倍音帯 3–7.5 Hz の外）',
+    labelSample: 'サンプル',
+    btnLoadSample: 'サンプルを読込',
+    labelPaste: 'テキストから読込',
+    pasteHint: 'legacy モード JSON または応答archive JSON を貼り付けて読み込みます',
+    btnLoadPaste: '貼り付けを読込',
+    pasteEmpty: 'E_PASTE_EMPTY: 読み込むテキストを入力してください',
+    loadSummaryMode: '{nodes} 節点 / {lines} 要素 / {modes} モード / 単位 {unit}',
+    loadSummaryResponse: '{nodes} 節点 / {faces} 面 / {times} 時刻 / {quantity} [{unit}]',
+    ariaSpeedNumber: '速度（倍）',
+    ariaScaleNumber: '倍率',
+    ariaWidthUndeformed: '未変形線の太さ',
+    ariaWidthDeformed: '変形線の太さ',
+    ariaCompareFiles: '比較先のモードデータ（calc YAML + result JSON + manifest）',
+    ariaPasteInput: '読み込むテキスト',
 
     pageTitle: '床モードアニメ',
     panelTitle: 'コントロール',
@@ -151,7 +171,12 @@ const dict = {
       '5. 「倍率」スライダーで表示スケールを調整します（0.5〜3.0）。モード表示は常に床寸法L/10基準で、物理応答ではありません。\n' +
       '6. 「表示切替」チェックボックスで各要素の表示/非表示を制御します。\n' +
       '7. アニメーション停止中に「PNG保存」でスクリーンショットを保存できます。\n' +
-      '8. マウスドラッグで回転、右クリックドラッグでパン、スクロールでズームできます。',
+      '8. マウスドラッグで回転、右クリックドラッグでパン、スクロールでズームできます。\n' +
+      '9. キーボード: Space=再生/停止、←/→=コマ移動、R=時刻リセット（入力欄にフォーカスがある間は無効）。\n' +
+      '10. 「節点の確認」でIDを入力するか、3Dビューの節点付近をクリックすると選択できます。応答archiveでは時刻歴・ピーク・PSDを表示します。\n' +
+      '11. 「ケース比較・鉛直MAC」「物理応答 A/B 差分」で2ケースを同期視点で比較できます。\n' +
+      '12. URLパラメータで初期状態を指定できます（例: ?sample=response_case&mode=2&t=0.01&view=top&lang=en&theme=dark&node=3）。\n' +
+      '13. 自動操作用に window.floorModeAnime（load / getState / setMode / setTime / play / stop / selectNode / setView）と body の data-* 属性を公開しています。',
   },
   en: {
     busyOperation: 'Wait for file loading to finish before recording.',
@@ -214,6 +239,26 @@ const dict = {
     envelopeMeaning: "Envelope: per-node maximum absolute values over all times on undeformed geometry (not a simultaneous deformed shape)",
     undefinedMac: "Undefined",
     samePhase: "Same phase comparison",
+    loadCancelledKeep: 'Cancelled (showing the previous data)',
+    alertVideoStop: 'Video recording can only start while animation is stopped.',
+    btnThemeToDark: '☾ Switch to dark',
+    btnThemeToLight: '☀ Switch to light',
+    frameDisplay: 'Frame {k} / {n}',
+    habNone: 'None (outside walking 1.5–2.5 Hz and harmonic 3–7.5 Hz bands)',
+    labelSample: 'Sample',
+    btnLoadSample: 'Load sample',
+    labelPaste: 'Load from text',
+    pasteHint: 'Paste a legacy modal JSON or a response archive JSON',
+    btnLoadPaste: 'Load pasted text',
+    pasteEmpty: 'E_PASTE_EMPTY: enter text to load',
+    loadSummaryMode: '{nodes} nodes / {lines} elements / {modes} modes / unit {unit}',
+    loadSummaryResponse: '{nodes} nodes / {faces} faces / {times} times / {quantity} [{unit}]',
+    ariaSpeedNumber: 'Speed (x)',
+    ariaScaleNumber: 'Scale',
+    ariaWidthUndeformed: 'Undeformed line width',
+    ariaWidthDeformed: 'Deformed line width',
+    ariaCompareFiles: 'Comparison modal data (calc YAML + result JSON + manifest)',
+    ariaPasteInput: 'Text to load',
 
     pageTitle: 'Floor Mode Anime',
     panelTitle: 'Controls',
@@ -297,9 +342,72 @@ const dict = {
       '5. Adjust display scale with the "Scale" slider (0.5 - 3.0). Mode shapes always use the floor-dimension L/10 convention and are not physical response.\n' +
       '6. Toggle element visibility with the "Visibility" checkboxes.\n' +
       '7. Save a screenshot with "Save PNG" while animation is stopped.\n' +
-      '8. Mouse drag to rotate, right-click drag to pan, scroll to zoom.',
+      '8. Mouse drag to rotate, right-click drag to pan, scroll to zoom.\n' +
+      '9. Keyboard: Space = play/stop, Left/Right = step, R = reset time (ignored while an input has focus).\n' +
+      '10. Select a node by typing its ID under "Inspect node" or by clicking near it in the 3D view. Response archives show history, peaks and PSD.\n' +
+      '11. "Compare cases / vertical MAC" and "Physical response A/B difference" compare two cases with a shared camera.\n' +
+      '12. URL parameters set the initial state (e.g. ?sample=response_case&mode=2&t=0.01&view=top&lang=en&theme=dark&node=3).\n' +
+      '13. For automation, window.floorModeAnime (load / getState / setMode / setTime / play / stop / selectNode / setView) and body data-* attributes are exposed.',
   },
 };
+
+/** Localized, action-oriented hints for diagnostic codes (E_/W_ prefix). */
+const issueHints = {
+  ja: {
+    W_FREQ_HIGH: '通常速度では1周期あたり数フレームしか描画されません。「モード観察用再生」で1周期を2秒または4秒にして観察してください。',
+    W_UNIT_CONVERTED: 'manifest の指定により座標を mm から m に変換しました。表示・出力は m です。',
+    E_FILE_PAIR: 'モデル（*_calc.yaml）と結果（*_result.json）を同時に選択してください。manifest があれば一緒に選びます。',
+    E_JSON_PARSE: 'JSON として読めません。内容と拡張子を確認してください。YAML はモデルファイルとしてのみ扱い、単体では読み込めません。',
+    E_FILE_AMBIGUOUS: '選択したファイルの組合せが一意に決まりません。不要なファイルを外してください。',
+    E_FILE_MIXED: '応答archive は単独で読み込んでください。',
+    E_SPECTRUM_SAMPLES: '周波数分析には等間隔で32サンプル以上の時刻歴が必要です。',
+    E_SPECTRUM_SPACING: '時刻が等間隔でないため周波数分析はできません。',
+    E_SETTINGS_INVALID: '条件JSONが現在のデータと一致しません。同じデータを読み込んでから復元してください。',
+    E_NODE_SELECT: '節点ID一覧は「モード形 数値」の表で確認できます。',
+    E_COMPARE_NODES: '比較は同じ節点・座標・単位・種別のケースだけに対応します。',
+    E_COMPARE_COORDINATES: '比較は同じ節点・座標・単位・種別のケースだけに対応します。',
+    E_COMPARE_UNITS: '比較は同じ節点・座標・単位・種別のケースだけに対応します。',
+    E_COMPARE_KIND: 'モードデータ同士、応答archive同士でのみ比較できます。',
+    E_COMPARE_TIME: '時刻列が一致する応答archiveだけを比較できます（補間はしません）。',
+    E_CAPTURE_PLAYING: '停止してから再度実行してください。',
+    E_VIDEO_UNSUPPORTED: 'PNG保存をご利用ください。',
+    E_FETCH: 'ファイルの URL と CORS 設定を確認してください。',
+    E_PASTE_EMPTY: 'テキスト欄に JSON を貼り付けてから押してください。',
+  },
+  en: {
+    W_FREQ_HIGH: 'At normal speed only a few frames are drawn per cycle. Use "Mode observation playback" (2 or 4 seconds per cycle).',
+    W_UNIT_CONVERTED: 'Coordinates were converted from mm to m as declared by the manifest. Display and exports use m.',
+    E_FILE_PAIR: 'Select the model (*_calc.yaml) and the result (*_result.json) together, plus the manifest if available.',
+    E_JSON_PARSE: 'The text is not valid JSON. YAML is only accepted as the model file and cannot be loaded alone.',
+    E_FILE_AMBIGUOUS: 'The selected files do not form a unique input. Remove extra files.',
+    E_FILE_MIXED: 'Load a response archive on its own.',
+    E_SPECTRUM_SAMPLES: 'Frequency analysis needs at least 32 uniformly spaced samples.',
+    E_SPECTRUM_SPACING: 'Frequency analysis needs uniformly spaced times.',
+    E_SETTINGS_INVALID: 'The settings JSON does not match the loaded data. Load the same data first.',
+    E_NODE_SELECT: 'Node IDs are listed in the "Mode Shape Values" table.',
+    E_COMPARE_NODES: 'Comparison requires identical node sets, coordinates, units and data kinds.',
+    E_COMPARE_COORDINATES: 'Comparison requires identical node sets, coordinates, units and data kinds.',
+    E_COMPARE_UNITS: 'Comparison requires identical node sets, coordinates, units and data kinds.',
+    E_COMPARE_KIND: 'Compare modal data with modal data, or response archives with response archives.',
+    E_COMPARE_TIME: 'Only response archives with identical time samples can be compared (no interpolation).',
+    E_CAPTURE_PLAYING: 'Stop playback and try again.',
+    E_VIDEO_UNSUPPORTED: 'Use Save PNG instead.',
+    E_FETCH: 'Check the file URL and CORS settings.',
+    E_PASTE_EMPTY: 'Paste JSON into the text box first.',
+  },
+};
+
+/**
+ * Return a localized hint for a diagnostic message or code, or '' when unknown.
+ * @param {string} messageOrCode  e.g. 'W_FREQ_HIGH: freqHz[2]=39.5 > 30 Hz ...'
+ * @returns {string}
+ */
+export function issueHint(messageOrCode) {
+  const match = /^([EW]_[A-Z0-9_]+)/.exec(String(messageOrCode ?? '').trim());
+  if (!match) return '';
+  const table = issueHints[currentLang] || issueHints.ja;
+  return table[match[1]] ?? issueHints.ja[match[1]] ?? '';
+}
 
 let currentLang = 'ja';
 
@@ -388,4 +496,14 @@ export function applyTranslations() {
   document.querySelectorAll('[data-i18n-title]').forEach((el) => {
     el.title = t(el.getAttribute('data-i18n-title'));
   });
+
+  // aria-label 属性の翻訳（data-i18n-aria）
+  document.querySelectorAll('[data-i18n-aria]').forEach((el) => {
+    el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria')));
+  });
+
+  // 言語に依存する動的表示（警告パネル等）の再描画を依頼する
+  if (typeof CustomEvent === 'function') {
+    document.dispatchEvent(new CustomEvent('floor:langchange', { detail: { lang: currentLang } }));
+  }
 }

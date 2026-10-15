@@ -12,6 +12,7 @@ export function setupComparison({ viewer, controller, data, on, requestRender, e
     generation++; load?.abort(); load = null;
     secondary?.dispose(); secondary = null; other = null; comparison = null; otherController = null;
     container.hidden = true; $('mac-table').replaceChildren(); $('compare-mode').replaceChildren(); $('compare-status').textContent = '';
+    $('compare-sign').checked = false;
     viewer.resize(); requestRender();
   };
   const table = () => {

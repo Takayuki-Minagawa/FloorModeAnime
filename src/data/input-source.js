@@ -88,6 +88,11 @@ export function parseFloorDataSource(source) {
   }
 
   if (source.length === 1) {
+    if (/\.ya?ml$/i.test(String(source[0].name ?? ''))) {
+      throw new Error(
+        'E_FILE_PAIR: a YAML model cannot be loaded alone; select the analysis model (*_calc.yaml) and the modal result (*_result.json) together',
+      );
+    }
     return parseFloorData(source[0].text);
   }
 
@@ -144,7 +149,7 @@ export function parseFloorData(jsonString) {
   try {
     raw = JSON.parse(jsonString);
   } catch (e) {
-    throw new Error(`JSON parse error: ${e.message}`, { cause: e });
+    throw new Error(`E_JSON_PARSE: ${e.message}`, { cause: e });
   }
 
   if (isResponseArchive(raw)) return parseResponseArchive(raw);

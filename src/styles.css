@@ -207,22 +207,23 @@ button:active {
   transform: scale(0.97);
 }
 
+/* 白文字とのコントラスト比 4.5:1 以上（WCAG AA）をライト／ダーク両テーマで満たす色 */
 #btn-play {
-  background: var(--accent);
+  background: #2563eb;
   color: #fff;
 }
 
 #btn-play:hover {
-  background: var(--accent-hover);
+  background: #1d4ed8;
 }
 
 #btn-stop {
-  background: #ff595e;
+  background: #d9363e;
   color: #fff;
 }
 
 #btn-stop:hover {
-  background: #d94045;
+  background: #b22a31;
 }
 
 #btn-download {
@@ -251,7 +252,8 @@ button:active {
 
 #btn-theme:hover,
 #btn-lang:hover {
-  background: var(--accent);
+  /* ホバー中も白文字で 4.5:1 以上を保つ（axe の検査はホバー状態で走ることがある） */
+  background: #2563eb;
   color: #fff;
 }
 
@@ -469,7 +471,8 @@ input[type="range"] {
 #error-container {
   position: fixed;
   bottom: 12px;
-  left: 12px;
+  /* 左下の凡例（幅 230px + 余白）と重ならない位置に置く */
+  left: 256px;
   right: 300px;
   padding: 0;
   z-index: 1000;
@@ -672,7 +675,13 @@ table.modeshape th {
 #controls details > :not(summary) { margin-top: 8px; }
 #controls details label { display: block; }
 #controls output { display: block; overflow-wrap: anywhere; }
-#tools-error { color: var(--msg-error-text); }
+#tools-error { color: var(--msg-error-text); white-space: pre-line; }
+.msg-hint { display: block; margin-top: 2px; font-size: 11px; opacity: 0.85; }
+#sample-select { flex: 1; min-width: 0; padding: 4px 6px; font-size: 12px; border: 1px solid var(--border-input); border-radius: 4px; background: var(--bg-input); color: var(--text-primary); }
+#btn-load-sample { flex: none; padding: 6px 10px; font-size: 12px; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-input); }
+#paste-input { width: 100%; resize: vertical; font-family: "Courier New", Courier, monospace; font-size: 12px; padding: 4px; border: 1px solid var(--border-input); border-radius: 4px; background: var(--bg-input); color: var(--text-primary); }
+#btn-load-paste { width: 100%; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-input); }
+#frame-display { font-family: "Courier New", Courier, monospace; }
 #history-chart { display: block; width: 100%; background: var(--bg-input); color: var(--text-primary); cursor: crosshair; border: 1px solid var(--border-color); }
 #response-compare-chart { display: block; width: 100%; background: var(--bg-input); color: var(--text-primary); cursor: crosshair; border: 1px solid var(--border-color); }
 #spectrum-chart { display: block; width: 100%; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-color); }

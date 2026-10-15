@@ -8,7 +8,7 @@
  */
 
 import { t, setLang, getLang, applyTranslations } from './i18n.js';
-import { DOM_IDS, SCALE, SPEED, STORAGE_KEYS, CAMERA_PRESETS } from './constants.js';
+import { DOM_IDS, SCALE, SPEED, STORAGE_KEYS, CAMERA_PRESETS, FRAME_STEPS } from './constants.js';
 import { assessFrequency, RISK } from './assessment.js';
 import { buildDisplayExport } from './export.js';
 import { playbackAction } from './playback.js';
@@ -83,7 +83,7 @@ export function setupUI({ viewer, animController, floorData, beforeCapture = () 
 
   // 初期表示
   refreshModeInfo();
-  updateTimeDisplay(animController.getTime());
+  updateTimeDisplay(animController.getTime(), animController);
   replaceListener(document.getElementById('modeshape-section'), 'toggle', () => updateModeShapeTable(animController, true), '_onTableToggle');
   const helpContent = $(DOM_IDS.helpContent);
   if (helpContent) helpContent.textContent = t('helpContent');
@@ -109,7 +109,7 @@ function setupModeControls(animController, applyVisibility, refreshModeInfo) {
   const onModeChange = () => {
     animController.setMode(Number(modeSelect.value));
     refreshModeInfo();
-    updateTimeDisplay(animController.getTime());
+    updateTimeDisplay(animController.getTime(), animController);
     // setMode で停止状態になるため、ラベル表示などを再評価する
     applyVisibility();
   };
@@ -155,7 +155,7 @@ function setupTimeline(animController, applyVisibility) {
   const slider = $(DOM_IDS.timeSlider);
   const run = (action, value) => {
     playbackAction(animController, action, value);
-    syncPlayback(animController);
+    syncPlaybackDisplays(animController);
     applyVisibility();
   };
   replaceListener(slider, 'input', () => run('seek', Number(slider.value)), '_onScrub');
@@ -163,9 +163,15 @@ function setupTimeline(animController, applyVisibility) {
   replaceListener($(DOM_IDS.btnStepFwd), 'click', () => run('step', 1), '_onStepFwd');
 }
 
-function syncPlayback(controller) {
+/**
+ * 時刻変更後（スクラブ・コマ送り・ピーク移動・条件復元など）に
+ * タイムライン・時間表示・数値表を現在時刻へ同期する。
+ * @param {import('./animation.js').AnimationController} controller
+ */
+export function syncPlaybackDisplays(controller) {
+  if (!controller) return;
   resetTimeline(controller);
-  updateTimeDisplay(controller.getTime());
+  updateTimeDisplay(controller.getTime(), controller);
   updateModeShapeTable(controller, true);
 }
 
@@ -245,7 +251,7 @@ function setupKeyboardShortcuts(animController, applyVisibility) {
     if (!actions[e.key] || e.repeat) return;
     e.preventDefault();
     playbackAction(animController, ...actions[e.key]);
-    syncPlayback(animController);
+    syncPlaybackDisplays(animController);
     applyVisibility();
   };
   replaceListener(document, 'keydown', onKeydown, '_onFloorKeydown');
@@ -320,7 +326,7 @@ function setupLangControl(animController, refreshModeInfo) {
     // モード選択を再構築 / 各表示を更新
     rebuildModeOptions($(DOM_IDS.modeSelect), animController);
     refreshModeInfo();
-    updateTimeDisplay(animController.getTime());
+    updateTimeDisplay(animController.getTime(), animController);
     const helpContent = $(DOM_IDS.helpContent);
     if (helpContent) helpContent.textContent = t('helpContent');
     // ファイル名表示更新（ファイル未選択時のみ）
@@ -335,17 +341,18 @@ function setupPngControl(viewer, animController, floorData, beforeCapture) {
   const btnDownload = $(DOM_IDS.btnDownload);
   const onDownload = async () => {
     if (animController.isPlaying()) {
-      alert(t('alertPngStop'));
+      showInlineMessage(t('alertPngStop'));
       return;
     }
     const filename = buildPngFilename(floorData, animController);
     try {
+      showInlineMessage('');
       beforeCapture();
       const width = Number(document.getElementById('capture-size')?.value) || 1600;
       await viewer.savePNG(filename, { width, height: Math.round(width * 0.625), background: document.getElementById('capture-background')?.value || undefined });
     } catch (err) {
       console.error('PNG save failed:', err);
-      alert(t('alertPngFail', { msg: err.message }));
+      showInlineMessage(t('alertPngFail', { msg: err.message }));
     }
   };
   replaceListener(btnDownload, 'click', onDownload, '_onDownload');
@@ -354,14 +361,46 @@ function setupPngControl(viewer, animController, floorData, beforeCapture) {
 // ─── 表示更新 ───────────────────────────────────────────────────────────────
 
 /**
- * 時間表示を更新する。
- * @param {number} time  現在時刻 [s]
+ * 時刻表示の小数桁数を返す。周期が短いモードではコマ送り（T/60）が
+ * 判読できるよう 3〜6 桁に広げる。応答データは 3 桁固定。
+ * @param {import('./animation.js').AnimationController} [controller]
+ * @returns {number}
  */
-export function updateTimeDisplay(time) {
+export function timeDigits(controller) {
+  if (!controller || controller.getDataKind?.() === 'response') return 3;
+  const period = controller.getPeriod();
+  if (!(period > 0)) return 3;
+  const step = period / FRAME_STEPS;
+  return Math.min(6, Math.max(3, Math.ceil(-Math.log10(step))));
+}
+
+/**
+ * 時間表示（と、モードデータではコマ番号）を更新する。
+ * @param {number} time  現在時刻 [s]
+ * @param {import('./animation.js').AnimationController} [controller]
+ */
+export function updateTimeDisplay(time, controller = null) {
   const el = $(DOM_IDS.timeDisplay);
-  if (el) {
-    el.textContent = t('timeDisplay', { t: time.toFixed(3) });
+  const text = t('timeDisplay', { t: time.toFixed(timeDigits(controller)) });
+  if (el) el.textContent = text;
+  const slider = $(DOM_IDS.timeSlider);
+  if (slider) slider.setAttribute('aria-valuetext', text);
+  const frame = document.getElementById('frame-display');
+  if (!frame) return;
+  const period = controller && controller.getDataKind?.() !== 'response' ? controller.getPeriod() : 0;
+  if (period > 0) {
+    const k = Math.round((time % period) / (period / FRAME_STEPS)) % FRAME_STEPS;
+    frame.textContent = t('frameDisplay', { k, n: FRAME_STEPS });
+  } else {
+    frame.textContent = '';
   }
+}
+
+/** alert() の代わりに画面内の通知欄へ表示する（自動操作を妨げない）。 */
+function showInlineMessage(message) {
+  const el = document.getElementById('tools-error');
+  if (el) el.textContent = message;
+  else if (message) console.warn(message);
 }
 
 /**
@@ -382,7 +421,7 @@ export function updatePlaybackDisplays(animController, viewer) {
   }
   playbackState.set(animController, playing);
 
-  updateTimeDisplay(time);
+  updateTimeDisplay(time, animController);
   if (animController.getDataKind() === 'response') {
     const slider = $(DOM_IDS.timeSlider);
     if (slider) slider.value = String(time);
@@ -430,7 +469,7 @@ function updateHabitability(animController) {
     el.textContent = t('habMedium');
     el.dataset.risk = 'medium';
   } else {
-    el.textContent = '';
+    el.textContent = t('habNone');
     el.dataset.risk = 'low';
   }
 }
@@ -564,7 +603,9 @@ function updateThemeButtonLabel() {
   const btnTheme = $(DOM_IDS.btnTheme);
   if (!btnTheme) return;
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  btnTheme.textContent = t(isDark ? 'btnThemeDark' : 'btnThemeLight');
+  // 言語ボタンと同じく「切替先」を表示し、現在状態は aria-pressed で示す
+  btnTheme.textContent = t(isDark ? 'btnThemeToLight' : 'btnThemeToDark');
+  btnTheme.setAttribute('aria-pressed', String(isDark));
 }
 
 // ─── ヘルパー ───────────────────────────────────────────────────────────────
@@ -597,6 +638,7 @@ function wireSlider(slider, valEl, apply, slot, digits = 1) {
   const handler = () => {
     const v = parseFloat(slider.value);
     valEl.textContent = v.toFixed(digits);
+    slider.setAttribute('aria-valuetext', `${v.toFixed(digits)} px`);
     apply(v);
   };
   replaceListener(slider, 'input', handler, slot);
@@ -619,11 +661,16 @@ function wireSliderWithNumber(slider, numberEl, valEl, range, apply, slot, digit
 
   const commit = (raw, { syncSlider, syncNumber }) => {
     let v = parseFloat(raw);
-    if (Number.isNaN(v)) return;
+    if (Number.isNaN(v)) {
+      // 無効値は現在のスライダー値へ書き戻し、欄とスライダーの不一致を残さない
+      if (numberEl) numberEl.value = slider.value;
+      return;
+    }
     v = Math.max(range.MIN, Math.min(range.MAX, v));
     if (syncSlider) slider.value = String(v);
     if (syncNumber && numberEl) numberEl.value = String(v);
     valEl.textContent = v.toFixed(digits);
+    slider.setAttribute('aria-valuetext', v.toFixed(digits));
     apply(v);
   };
 

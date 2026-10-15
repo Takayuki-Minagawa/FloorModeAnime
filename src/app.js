@@ -2,12 +2,19 @@
 import { loadFloorSource } from './loader.js';
 import { AnimationController } from './animation.js';
 import { setupUI, disposeUI, updatePlaybackDisplays } from './ui.js';
-import { initLang, t, applyTranslations } from './i18n.js';
+import { initLang, setLang, t, applyTranslations, issueHint } from './i18n.js';
 import { setupShell } from './shell.js';
 import { setupAnalysisTools } from './tools-ui.js';
 import { STORAGE_KEYS } from './constants.js';
+import { SAMPLE_SETS, parseStartupParams, applyUrlState, createPublicApi } from './automation.js';
+
+export const APP_VERSION = '1.5.0';
+
+/** 直近の診断。言語切替時に同じ内容を再描画するために保持する。 */
+let lastMessages = { errors: [], warnings: [] };
 
 function showMessages(errors = [], warnings = []) {
+  lastMessages = { errors, warnings };
   const container = document.getElementById('error-container');
   container.replaceChildren();
   if (!errors.length && !warnings.length) return;
@@ -18,9 +25,50 @@ function showMessages(errors = [], warnings = []) {
   summary.textContent = t(errors.length && warnings.length ? 'messageSummaryBoth' : errors.length ? 'messageSummaryErrors' : 'messageSummaryWarnings', { errors: errors.length, warnings: warnings.length, count: errors.length || warnings.length });
   panel.appendChild(summary);
   for (const [items, cls] of [[errors, 'msg-error'], [warnings, 'msg-warning']]) {
-    for (const item of items) { const line = document.createElement('div'); line.className = cls; line.textContent = item.message; panel.appendChild(line); }
+    for (const item of items) {
+      const line = document.createElement('div'); line.className = cls; line.textContent = item.message;
+      const hint = issueHint(item.message || item.code);
+      if (hint) { const span = document.createElement('span'); span.className = 'msg-hint'; span.textContent = hint; line.appendChild(span); }
+      panel.appendChild(line);
+    }
   }
   container.appendChild(panel);
+}
+
+/** 読込済みデータの概要（節点数など）を一行にまとめる。 */
+function summarizeData(data) {
+  if (!data) return '';
+  if (data.dataKind === 'response') {
+    return t('loadSummaryResponse', {
+      nodes: data.nodes?.size ?? 0, faces: data.faces?.length ?? 0, times: data.response?.times?.length ?? 0,
+      quantity: data.response?.quantity ?? '-', unit: data.response?.unit ?? '-',
+    });
+  }
+  return t('loadSummaryMode', {
+    nodes: data.nodes?.size ?? 0, lines: data.lines?.length ?? 0, modes: data.modes?.size ?? 0,
+    unit: data.meta?.lengthUnit ?? '-',
+  });
+}
+
+/** 公開サンプル一式を取得する source 関数を返す。 */
+function sampleSource(key) {
+  const names = SAMPLE_SETS[key];
+  if (!names) throw new Error(`E_SAMPLE_UNKNOWN: unknown sample ${key}`);
+  return async signal => Promise.all(names.map(async name => {
+    const response = await fetch(`${import.meta.env.BASE_URL}Sample/${name}`, { signal });
+    if (!response.ok) throw new Error(`E_FETCH: ${name} HTTP ${response.status}`);
+    return { name, text: await response.text() };
+  }));
+}
+
+/** 外部 URL（CORS 許可済み）からファイルを取得する source 関数を返す。 */
+function urlSource(urls) {
+  return async signal => Promise.all(urls.map(async url => {
+    const response = await fetch(url, { signal });
+    if (!response.ok) throw new Error(`E_FETCH: ${url} HTTP ${response.status}`);
+    const name = decodeURIComponent(new URL(url, location.href).pathname.split('/').pop() || 'input.json');
+    return { name, text: await response.text() };
+  }));
 }
 
 export function createApplication({ FloorViewer, loader = loadFloorSource, toolsFactory = setupAnalysisTools }) {
@@ -33,7 +81,7 @@ export function createApplication({ FloorViewer, loader = loadFloorSource, tools
   function setReady(ready) {
     document.body.dataset.ready = String(ready);
     for (const element of document.querySelectorAll('#controls button, #controls input, #controls select')) {
-      if (!['btn-select-file', 'file-input', 'btn-lang', 'btn-theme', 'cancel-load'].includes(element.id)) element.disabled = !ready;
+      if (!['btn-select-file', 'file-input', 'btn-lang', 'btn-theme', 'cancel-load', 'sample-select', 'btn-load-sample', 'btn-load-paste'].includes(element.id)) element.disabled = !ready;
     }
   }
   function setStatus(key) {
@@ -59,6 +107,12 @@ export function createApplication({ FloorViewer, loader = loadFloorSource, tools
     }
     updatePlaybackDisplays(controller, viewer);
     toolsUI?.update();
+    // 自動操作向けに現在状態を body の data-* 属性へ公開する
+    const state = document.body.dataset;
+    state.playing = String(controller.isPlaying());
+    state.dataKind = controller.getDataKind();
+    state.mode = String(controller.getCurrentMode() ?? '');
+    state.time = controller.getTime().toFixed(6);
   }
   function tick(now) {
     frame = 0;
@@ -73,7 +127,7 @@ export function createApplication({ FloorViewer, loader = loadFloorSource, tools
   function cancelLoad() {
     generation++;
     loading?.abort(); loading = null;
-    setStatus(data ? 'loadReady' : 'loadCancelled');
+    setStatus(data ? 'loadCancelledKeep' : 'loadCancelled');
     requestRender();
   }
   async function load(source, name = '') {
@@ -82,14 +136,22 @@ export function createApplication({ FloorViewer, loader = loadFloorSource, tools
     loading?.abort();
     const abort = new AbortController(); loading = abort;
     setStatus('loadReading'); showMessages();
+    const display = document.getElementById('file-name-display');
     try {
-      const input = typeof source === 'function' ? await source(abort.signal) : source;
-      if (abort.signal.aborted) return false;
-      const nextData = await loader(input, { signal: abort.signal, onProgress: progress => {
-        if (current !== generation) return;
-        const stage = typeof progress === 'string' ? progress : progress.stage;
-        setStatus(stage === 'validate' || stage === 'validating' ? 'loadValidating' : 'loadParsing');
-      } });
+      let nextData;
+      try {
+        const input = typeof source === 'function' ? await source(abort.signal) : source;
+        if (abort.signal.aborted) return false;
+        nextData = await loader(input, { signal: abort.signal, onProgress: progress => {
+          if (current !== generation) return;
+          const stage = typeof progress === 'string' ? progress : progress.stage;
+          setStatus(stage === 'validate' || stage === 'validating' ? 'loadValidating' : 'loadParsing');
+        } });
+      } catch (error) {
+        // 読込・解析の失敗は、失敗したファイル名を表示して状況を分かるようにする
+        if (error.name !== 'AbortError' && name && current === generation) { display.textContent = name; display._hasFile = true; }
+        throw error;
+      }
       if (disposed || current !== generation) return false;
       if (toolsUI?.isRecording()) throw new Error('E_LOAD_RECORDING: cancel recording before replacing data');
       const nextController = new AnimationController(nextData);
@@ -104,8 +166,9 @@ export function createApplication({ FloorViewer, loader = loadFloorSource, tools
       setReady(true);
       setupUI({ viewer, animController: controller, floorData: data, beforeCapture: () => updateFrame(true) });
       toolsUI = toolsFactory({ viewer, controller, data, requestRender, beforeCapture: () => updateFrame(true) });
-      const display = document.getElementById('file-name-display');
       display.textContent = name || data.meta?.title || ''; display._hasFile = true;
+      document.getElementById('load-summary').textContent = summarizeData(data);
+      document.body.dataset.selectedNode = document.getElementById('selected-node')?.value ?? '';
       showMessages([], nextData.validationWarnings || []);
       setStatus('loadReady'); requestRender();
       return true;
@@ -116,8 +179,16 @@ export function createApplication({ FloorViewer, loader = loadFloorSource, tools
       requestRender(); return false;
     } finally { if (current === generation) loading = null; }
   }
-  const disposeShell = setupShell({ load, cancel: cancelLoad, onChange: () => { viewer.setThemeColors(document.documentElement.dataset.theme === 'dark'); requestRender(); } });
+  const loadSample = key => load(sampleSource(key), key);
+  const disposeShell = setupShell({ load, cancel: cancelLoad, loadSample, onChange: () => { viewer.setThemeColors(document.documentElement.dataset.theme === 'dark'); requestRender(); } });
   setReady(false);
+  // 言語切替時は診断パネルと読込概要を現在の言語で描き直す
+  on(document, 'floor:langchange', () => {
+    showMessages(lastMessages.errors, lastMessages.warnings);
+    document.getElementById('load-summary').textContent = summarizeData(data);
+    const status = document.getElementById('load-status');
+    if (status?.dataset.i18n) status.textContent = t(status.dataset.i18n);
+  });
   viewer.setRenderRequest(requestRender);
   viewer.setThemeColors(document.documentElement.dataset.theme === 'dark');
   on(window, 'resize', () => { viewer.resize(); toolsUI?.resize(); requestRender(); });
@@ -133,20 +204,25 @@ export function createApplication({ FloorViewer, loader = loadFloorSource, tools
   }
   on(window, 'pagehide', event => { if (!event.persisted) dispose(); });
   viewer.resize(); requestRender();
-  return { load, cancelLoad, dispose, requestRender, getState: () => ({ data, controller, loading: !!loading }) };
+  return { load, loadSample, cancelLoad, dispose, requestRender, getState: () => ({ data, controller, loading: !!loading }) };
 }
 
 export async function initApp() {
-  initLang(); applyTranslations();
+  const params = new URLSearchParams(location.search);
+  const startup = parseStartupParams(params);
+  initLang();
+  if (startup.lang) setLang(startup.lang);
+  applyTranslations();
   try { if (localStorage.getItem(STORAGE_KEYS.theme) === 'dark') document.documentElement.dataset.theme = 'dark'; } catch { /* unavailable */ }
+  if (startup.theme) document.documentElement.dataset.theme = startup.theme === 'dark' ? 'dark' : '';
   try {
     const { FloorViewer } = await import('./viewer.js');
     const app = createApplication({ FloorViewer });
-    await app.load(async signal => Promise.all(['Test0202_calc.yaml', 'Test0202_calc_go_modal_result.json', 'Test0202_manifest.json'].map(async name => {
-      const response = await fetch(`${import.meta.env.BASE_URL}Sample/${name}`, { signal });
-      if (!response.ok) throw new Error(`E_FETCH: ${name} HTTP ${response.status}`);
-      return { name, text: await response.text() };
-    })), 'Test0202');
+    window.floorModeAnime = createPublicApi(app, APP_VERSION);
+    const loaded = startup.sources.length
+      ? await app.load(urlSource(startup.sources), startup.sources.map(url => url.split('/').pop()).join(', '))
+      : await app.loadSample(startup.sample ?? 'Test0202');
+    if (loaded) applyUrlState(app, params);
     return app;
   } catch (error) { showMessages([{ code: 'E_WEBGL', message: t('errorWebGL', { msg: error.message }) }]); return null; }
 }
